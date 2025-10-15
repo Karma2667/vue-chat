@@ -1,0 +1,51 @@
+/* ~/assets/css/main.css */
+@import "@fortawesome/fontawesome-free/css/all.min.css";
+
+:root {
+  --scrollbar-track-color: #3f3f460f;
+  --scrollbar-thumb-color: #3f3f4624;
+  background-color: white;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --scrollbar-track-color: #f4f4f50f;
+    --scrollbar-thumb-color: #f4f4f524;
+    background-color: #111827;
+  }
+}
+
+::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track-color);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb-color);
+  border-radius: 4px;
+  display: block;
+  height: 48px;
+}
+
+::-webkit-scrollbar-button {
+  display: block;
+  height: 4px;
+  width: 4px;
+}
+
+a {
+  -webkit-user-drag: none;
+}
+
+/* Исключение для инпутов и кнопок */
+input, button, textarea {
+  user-select: auto !important;
+  -webkit-user-select: auto !important;
+  -moz-user-select: auto !important;
+  -ms-user-select: auto !important;
+}
