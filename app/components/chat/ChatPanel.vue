@@ -1,9 +1,10 @@
+<!-- ChatPanel.vue -->
 <script setup lang="ts">
 import { defineProps, defineEmits } from 'vue'
 import DialogList from './DialogList.vue'
 import ChatWindow from './ChatWindow.vue'
-import ChatHeader from './ChatHeader.vue'
 import ChatListHeader from './ChatListHeader.vue'
+import MessageActions from './MessageActions.vue'
 
 const props = defineProps<{
   isOpen: boolean
@@ -16,6 +17,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'open-chat', dialog: any): void
   (e: 'go-back'): void
+  (e: 'search'): void // Добавляем событие поиска
 }>()
 </script>
 
@@ -26,7 +28,7 @@ const emit = defineEmits<{
         <ChatListHeader
           v-if="props.currentScreen === 'dialogs'"
           @tab-change="key => console.log('Переключение вкладки', key)"
-          @search="console.log('Поиск')"
+          @search="emit('search')" 
           @new-group-chat="console.log('Новая группа')"
           @settings="console.log('Настройки')"
           @selected="console.log('Выбраны чаты')"
@@ -51,6 +53,7 @@ const emit = defineEmits<{
           v-else
           :active-chat="props.activeChat"
           :chats="props.chats"
+          @search="emit('search')" 
         />
       </div>
     </transition>

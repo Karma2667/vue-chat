@@ -1,13 +1,16 @@
+<!-- ChatWidget.vue -->
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import ChatToggle from './ChatToggle.vue'
 import Backdrop from './Backdrop.vue'
 import ChatPanel from './ChatPanel.vue'
+import UserSearch from './UserSearch.vue' // Импортируем UserSearch
 
 const isOpen = ref(false)
 const currentScreen = ref<'dialogs' | 'chat'>('dialogs')
 const activeChat = ref<any>(null)
 const inited = ref(false)
+const showSearch = ref(false) // Состояние для UserSearch
 
 const dialogs = ref([
   { id: 1, from: 'Администрация' },
@@ -30,6 +33,7 @@ onMounted(() => requestAnimationFrame(() => (inited.value = true)))
 
 function toggleWidget() {
   isOpen.value = !isOpen.value
+  if (!isOpen.value) showSearch.value = false // Закрываем поиск при закрытии виджета
   console.log('Widget toggled:', isOpen.value)
 }
 
@@ -41,7 +45,18 @@ function openChat(dialog: any) {
 
 function goBack() {
   currentScreen.value = 'dialogs'
+  showSearch.value = false // Закрываем поиск при возврате
   console.log('Go back to dialogs')
+}
+
+function openSearch() {
+  showSearch.value = true
+}
+
+function handleSelectUser(user: any) {
+  console.log('Selected user:', user)
+  // Здесь можно добавить логику, например, открыть чат с пользователем
+  showSearch.value = false
 }
 
 const widgetClasses = computed(() => ({
@@ -73,8 +88,17 @@ const widgetClasses = computed(() => ({
         :chats="chats"
         @open-chat="openChat"
         @go-back="goBack"
+        @search="openSearch" 
       />
     </transition>
+
+    <!-- UserSearch -->
+    <UserSearch
+      :visible="showSearch"
+      :conversation-id="activeChat?.id"
+      @select-user="handleSelectUser"
+      @close="showSearch = false"
+    />
   </div>
 </template>
 
@@ -82,9 +106,9 @@ const widgetClasses = computed(() => ({
 .messenger-widget {
   position: fixed;
   inset: 0;
-  width:400px;
-    right: 0; 
-  left: auto; 
+  width: 400px;
+  right: 0;
+  left: auto;
   z-index: 1000;
 }
 

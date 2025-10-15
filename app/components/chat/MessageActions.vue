@@ -1,15 +1,15 @@
+<!-- MessageActions.vue -->
 <script setup lang="ts">
 import { ref, defineProps, defineEmits } from 'vue'
 import ReactionPicker from './ReactionPicker.vue'
-
-// Импорт Phosphor Icons v2
 import {
   PhSmiley,
   PhArrowBendLeftUp,
   PhPaperPlaneTilt,
   PhPencilSimple,
   PhFlag,
-  PhPushPin
+  PhPushPin,
+  PhMagnifyingGlass // Добавляем иконку поиска
 } from '@phosphor-icons/vue'
 
 const props = defineProps<{
@@ -20,6 +20,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'reaction-selected', emoji: string): void
   (e: 'reply'): void
+  (e: 'search'): void // Новое событие для поиска
 }>()
 
 const showReactions = ref(false)
@@ -36,6 +37,10 @@ function selectReaction(emoji: string) {
 function reply() {
   emit('reply')
 }
+
+function openSearch() {
+  emit('search') // Эмитим событие для открытия поиска
+}
 </script>
 
 <template>
@@ -46,6 +51,14 @@ function reply() {
       weight="regular"
       title="Реакции"
       @click.stop="togglePicker"
+    />
+
+    <!-- Поиск -->
+    <PhMagnifyingGlass
+      size="20"
+      weight="regular"
+      title="Поиск пользователей"
+      @click.stop="openSearch"
     />
 
     <!-- Ответ -->
@@ -111,19 +124,16 @@ function reply() {
   color: #fff;
 }
 
-/* Общие стили для всех Phosphor SVG */
 .actions svg {
   cursor: pointer;
   transition: transform 0.15s ease, color 0.2s ease;
 }
 
-/* Hover-анимация */
 .actions svg:hover {
   transform: scale(1.2);
   color: #0078ff;
 }
 
-/* Размеры */
 .small-icon {
   width: 16px;
   height: 16px;

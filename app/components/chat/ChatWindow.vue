@@ -1,11 +1,16 @@
+<!-- ChatWindow.vue -->
 <script setup lang="ts">
-import { defineProps, ref, computed, nextTick } from 'vue'
+import { defineProps, defineEmits, ref, computed, nextTick } from 'vue'
 import MessageItem from './MessageItem.vue'
 import MessageInput from './MessageInput.vue'
 
 const props = defineProps<{
   activeChat: any
   chats: Record<number, any[]>
+}>()
+
+const emit = defineEmits<{
+  (e: 'search'): void // Добавляем событие search
 }>()
 
 const messagesContainer = ref<HTMLDivElement | null>(null)
@@ -33,11 +38,7 @@ function sendMessage(text: string, attachments?: File[]) {
   console.log('Reply message:', replyMsg)
 
   const mappedAttachments = attachments?.map(file => ({
-    type: file.type.startsWith('image/')
-      ? 'image'
-      : file.type.startsWith('video/')
-      ? 'video'
-      : 'file',
+    type: file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'file',
     url: URL.createObjectURL(file),
     name: file.name,
     size: `${(file.size / 1024).toFixed(1)} KB`
@@ -48,11 +49,9 @@ function sendMessage(text: string, attachments?: File[]) {
     text,
     attachments: mappedAttachments,
     self: true,
-    author: 'Вы', // Добавляем поле author
+    author: 'Вы',
     time: new Date().toLocaleTimeString().slice(0, 5),
-    reply: replyMsg
-      ? { author: replyMsg.author, text: replyMsg.text }
-      : undefined
+    reply: replyMsg ? { author: replyMsg.author, text: replyMsg.text } : undefined
   }
   console.log('New message:', msg)
 
@@ -65,6 +64,10 @@ function sendMessage(text: string, attachments?: File[]) {
       behavior: 'smooth'
     })
   })
+}
+
+function handleSearch() {
+  emit('search') // Эмитим событие поиска
 }
 </script>
 
@@ -82,6 +85,7 @@ function sendMessage(text: string, attachments?: File[]) {
         :attachments="msg.attachments"
         :reply="msg.reply"
         @reply="setReply(msg.id)"
+        @search="handleSearch"
       />
     </div>
 
