@@ -1,21 +1,33 @@
 <template>
-  <div class="home">
-    <h1>Добро пожаловать, {{ user?.email }} 👋</h1>
-    <button @click="logout">Выйти</button>
-  </div>
+  <client-only>
+    <div class="home">
+      <h1>Добро пожаловать, {{ user?.email ?? 'Гость' }} 👋</h1>
+      <button @click="handleLogout" :disabled="loading">Выйти</button>
+    </div>
+  </client-only>
 </template>
 
 <script setup lang="ts">
-const user = ref<any>(null)
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuth } from '~/composables/useAuth'
 
-onMounted(() => {
-  const data = localStorage.getItem('user')
-  if (data) user.value = JSON.parse(data)
-})
+const router = useRouter()
+const { authService, user } = useAuth()
+const loading = ref(false)
 
-function logout() {
-  localStorage.removeItem('user')
-  navigateTo('/auth')
+async function handleLogout() {
+  loading.value = true
+  try {
+    console.log('Вызов logout')
+    await authService.logout()
+    console.log('Перенаправление на /auth')
+    router.push('/auth')
+  } catch (error) {
+    console.error('Ошибка при выходе:', error)
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -42,5 +54,10 @@ button {
 
 button:hover {
   background: #005fcc;
+}
+
+button:disabled {
+  background: #004aad;
+  cursor: not-allowed;
 }
 </style>

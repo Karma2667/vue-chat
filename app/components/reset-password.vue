@@ -30,7 +30,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { authService } from '~/composables/useAuth'
+import { authService } from '../utils/auth'
 
 const router = useRouter()
 const route = useRoute()

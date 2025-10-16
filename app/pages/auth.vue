@@ -1,5 +1,5 @@
 <template>
-  <div class="container">
+  <div v-if="!isAuthenticated" class="container">
     <div class="card">
       <h1>{{ isLogin ? 'Вход' : 'Регистрация' }}</h1>
 
@@ -94,20 +94,26 @@
       </div>
     </div>
   </div>
+  <div v-else class="container">
+    <p>Перенаправление на главную...</p>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { authService } from '~/composables/useAuth'
+import { useAuth } from '~/composables/useAuth'
 
 const router = useRouter()
 const route = useRoute()
+const { authService } = useAuth()
 const isLogin = ref(true)
 const loading = ref(false)
 const error = ref('')
 const showResetPassword = ref(false)
 const showSendConfirmation = ref(false)
+
+const isAuthenticated = computed(() => authService.isAuthenticated())
 
 const form = ref({
   email: '',
@@ -121,6 +127,12 @@ const confirmationForm = ref({ email: '' })
 
 onMounted(async () => {
   console.log('onMounted сработал')
+  if (isAuthenticated.value) {
+    console.log('Пользователь уже авторизован, перенаправление на главную')
+    router.push('/')
+    return
+  }
+
   const token = route.query.token
   if (token && typeof token === 'string') {
     try {
@@ -153,7 +165,8 @@ async function handleSubmit() {
   loading.value = true
   try {
     if (isLogin.value) {
-      await authService.login(form.value.email, form.value.password)
+      const response = await authService.login(form.value.email, form.value.password)
+      console.log('Login response in auth.vue:', response)
       router.push('/')
     } else {
       if (!form.value.username || !form.value.password_confirmation) {
@@ -223,7 +236,7 @@ async function handleSendConfirmation() {
   min-height: 100vh;
   background: linear-gradient(to right, #3b82f6, #06b6d4);
   font-family: sans-serif;
-  user-select:auto;
+  user-select: auto;
 }
 
 .card {
@@ -234,7 +247,7 @@ async function handleSendConfirmation() {
   text-align: center;
   width: 100%;
   max-width: 28rem;
-    user-select:auto;
+  user-select: auto;
 }
 
 .input {
