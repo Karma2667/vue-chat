@@ -19,10 +19,11 @@ const props = defineProps<{
   excludeIds?: number[]
   conversationId?: number
   visible?: boolean
+  dialogs?: { id: number; from: string; type?: string }[]
 }>()
 
 const emit = defineEmits<{
-  (e: 'select-user', user: User): void
+  (e: 'select-user', user: { id: number; username: string }): void
   (e: 'close'): void
 }>()
 
@@ -51,11 +52,11 @@ const performSearch = debounce(async (query: string) => {
 
   try {
     const result = await searchUsers(query, props.excludeIds, props.conversationId)
-    users.value = result
-    console.log('Users in component:', users.value) // Отладка
+    users.value = result.filter(user => user.id !== undefined && user.username)
+    console.log('Filtered users in component:', users.value)
   } catch (err: any) {
     error.value = err.message || 'Ошибка при поиске пользователей'
-    console.error(err)
+    console.error('Search error:', err)
   } finally {
     loading.value = false
   }
@@ -85,8 +86,12 @@ function closeOverlay() {
 }
 
 function selectUser(user: User) {
-  emit('select-user', user)
-  closeOverlay()
+  if (user.id !== undefined && user.username) {
+    console.log('Selected user:', { id: user.id, username: user.username })
+    emit('select-user', { id: user.id, username: user.username })
+  } else {
+    console.warn('Invalid user selected:', user)
+  }
 }
 
 onMounted(() => {
@@ -103,7 +108,6 @@ onUnmounted(() => {
     <transition name="panel-slide">
       <div v-if="showOverlay" class="overlay">
         <div class="search-container">
-          <!-- Заголовок с полем поиска -->
           <div class="search-header">
             <button class="back-button" @click="closeOverlay">
               <i class="fas fa-arrow-left"></i>
@@ -117,10 +121,8 @@ onUnmounted(() => {
             />
           </div>
 
-          <!-- Лоадер -->
           <div v-if="loading" class="loading">Загрузка...</div>
 
-          <!-- Ошибка -->
           <div v-if="error" class="error">
             {{ error }}
             <button v-if="error.includes('Неавторизован')" @click="closeOverlay; navigateTo('/auth')">
@@ -128,7 +130,6 @@ onUnmounted(() => {
             </button>
           </div>
 
-          <!-- Список пользователей в стиле DialogList -->
           <div class="dialogs-container">
             <div
               v-for="user in users"
@@ -148,7 +149,6 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Нет результатов -->
           <div v-if="!loading && searchQuery.length >= 2 && users.length === 0" class="no-results">
             Нет пользователей по запросу
           </div>
@@ -159,6 +159,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* Стили остаются без изменений */
 .overlay {
   position: fixed;
   top: 0;

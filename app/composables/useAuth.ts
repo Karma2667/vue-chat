@@ -1,28 +1,45 @@
 import axios from 'axios'
-import type { AxiosInstance, AxiosResponse } from 'axios'
+import type { AxiosInstance, AxiosResponse, AxiosError, InternalAxiosRequestConfig } from 'axios'
+
+interface User {
+  id: number
+  username: string
+  email: string
+  is_current_user?: boolean
+  avatar_url?: string
+  online?: boolean
+  status?: string
+  last_seen_at?: string
+}
+
+// Расширяем тип конфигурации для поддержки _retry
+interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
+  _retry?: boolean
+}
 
 interface AuthResponse {
   success?: boolean
   message?: string
   access_token?: string
   refresh_token?: string
-  user?: any
+  user?: User
 }
 
 interface AuthError {
+  message: string
   response?: {
+    status?: number
     data?: {
       message?: string
     }
   }
-  message: string
 }
 
 export class AuthService {
   private api: AxiosInstance
   private token: string | null = null
   private refreshToken: string | null = null
-  private user: any = null
+  private user: User | null = null
 
   constructor(baseURL: string = 'https://stan-messenger.ru/api/v1') {
     this.api = axios.create({
@@ -30,19 +47,19 @@ export class AuthService {
       headers: { 'Content-Type': 'application/json' }
     })
 
-    // Инициализация токенов из localStorage
     this.loadTokens()
 
-    // Интерсептор для обработки ошибок 401
     this.api.interceptors.response.use(
       (response) => response,
-      async (error) => {
-        const originalRequest = error.config
-        if (error.response?.status === 401 && !originalRequest._retry) {
+      async (error: AxiosError<AuthError>) => {
+        const originalRequest = error.config as CustomAxiosRequestConfig | undefined
+        if (originalRequest && error.response?.status === 401 && !originalRequest._retry) {
           originalRequest._retry = true
           try {
             await this.refresh()
-            return this.api(originalRequest)
+            if (originalRequest) {
+              return this.api(originalRequest)
+            }
           } catch (refreshError) {
             await this.logout()
             return Promise.reject(refreshError)
@@ -73,17 +90,26 @@ export class AuthService {
     }
   }
 
-  async register(email: string, username: string, password: string, password_confirmation: string): Promise<AuthResponse> {
+  public async makeRequest<T>(url: string, method: string, data?: any): Promise<T> {
+    const response: AxiosResponse<T> = await this.api.request<T>({
+      method,
+      url,
+      data
+    })
+    return response.data
+  }
+
+  async register(email: string, username: string, password: string, passwordConfirmation: string): Promise<AuthResponse> {
     try {
       const response: AxiosResponse<AuthResponse> = await this.api.post('/auth/register', {
-        auth: { email, username, password, password_confirmation }
+        auth: { email, username, password, password_confirmation: passwordConfirmation }
       })
       console.log('Register response:', response.data)
       return response.data
-    } catch (e: any) {
-      const error: AuthError = e
-      console.error('Register error:', error.response?.data || error.message)
-      throw new Error(error.response?.data?.message || 'Ошибка регистрации')
+    } catch (error) {
+      const err = error as AxiosError<AuthError>
+      console.error('Register error:', err.response?.data || err.message)
+      throw new Error(err.response?.data?.message || 'Ошибка регистрации')
     }
   }
 
@@ -96,13 +122,13 @@ export class AuthService {
       const { access_token, refresh_token, user } = response.data
       if (access_token && refresh_token) {
         this.saveTokens(access_token, refresh_token)
-        this.user = user
+        this.user = user || null
       }
       return response.data
-    } catch (e: any) {
-      const error: AuthError = e
-      console.error('Login error:', error.response?.data || error.message)
-      throw new Error(error.response?.data?.message || 'Ошибка авторизации')
+    } catch (error) {
+      const err = error as AxiosError<AuthError>
+      console.error('Login error:', err.response?.data || err.message)
+      throw new Error(err.response?.data?.message || 'Ошибка авторизации')
     }
   }
 
@@ -115,12 +141,12 @@ export class AuthService {
       console.log('Refresh response:', response.data)
       const { access_token, refresh_token } = response.data
       if (access_token) {
-        this.saveTokens(access_token, refresh_token || this.refreshToken)
+        this.saveTokens(access_token, refresh_token || this.refreshToken!)
       }
-    } catch (e: any) {
-      const error: AuthError = e
-      console.error('Refresh error:', error.response?.data || error.message)
-      throw new Error(error.response?.data?.message || 'Ошибка обновления токена')
+    } catch (error) {
+      const err = error as AxiosError<AuthError>
+      console.error('Refresh error:', err.response?.data || err.message)
+      throw new Error(err.response?.data?.message || 'Ошибка обновления токена')
     }
   }
 
@@ -129,8 +155,8 @@ export class AuthService {
       try {
         await this.api.delete('/auth/logout', { params: { refresh_token: this.refreshToken } })
         console.log('Logout successful')
-      } catch (e: any) {
-        console.error('Logout error:', e.response?.data || e.message)
+      } catch (error) {
+        console.error('Logout error:', (error as AxiosError<AuthError>).response?.data || error)
       }
     }
     this.token = null
@@ -148,10 +174,10 @@ export class AuthService {
       const response: AxiosResponse<AuthResponse> = await this.api.get('/auth/confirm', { params: { token } })
       console.log('Confirm email response:', response.data)
       return response.data
-    } catch (e: any) {
-      const error: AuthError = e
-      console.error('Confirm email error:', error.response?.data || error.message)
-      throw new Error(error.response?.data?.message || 'Ошибка подтверждения email')
+    } catch (error) {
+      const err = error as AxiosError<AuthError>
+      console.error('Confirm email error:', err.response?.data || err.message)
+      throw new Error(err.response?.data?.message || 'Ошибка подтверждения email')
     }
   }
 
@@ -160,10 +186,10 @@ export class AuthService {
       const response: AxiosResponse<AuthResponse> = await this.api.post('/auth/send_confirmation', { email })
       console.log('Send confirmation response:', response.data)
       return response.data
-    } catch (e: any) {
-      const error: AuthError = e
-      console.error('Send confirmation error:', error.response?.data || error.message)
-      throw new Error(error.response?.data?.message || 'Ошибка отправки письма подтверждения')
+    } catch (error) {
+      const err = error as AxiosError<AuthError>
+      console.error('Send confirmation error:', err.response?.data || err.message)
+      throw new Error(err.response?.data?.message || 'Ошибка отправки письма подтверждения')
     }
   }
 
@@ -172,24 +198,24 @@ export class AuthService {
       const response: AxiosResponse<AuthResponse> = await this.api.post('/auth/request_password_reset', { auth: { email } })
       console.log('Request password reset response:', response.data)
       return response.data
-    } catch (e: any) {
-      const error: AuthError = e
-      console.error('Request password reset error:', error.response?.data || error.message)
-      throw new Error(error.response?.data?.message || 'Ошибка запроса сброса пароля')
+    } catch (error) {
+      const err = error as AxiosError<AuthError>
+      console.error('Request password reset error:', err.response?.data || err.message)
+      throw new Error(err.response?.data?.message || 'Ошибка запроса сброса пароля')
     }
   }
 
-  async resetPassword(token: string, password: string, password_confirmation: string): Promise<AuthResponse> {
+  async resetPassword(token: string, password: string, passwordConfirmation: string): Promise<AuthResponse> {
     try {
       const response: AxiosResponse<AuthResponse> = await this.api.post('/auth/reset_password', {
-        auth: { token, password, password_confirmation }
+        auth: { token, password, password_confirmation: passwordConfirmation }
       })
       console.log('Reset password response:', response.data)
       return response.data
-    } catch (e: any) {
-      const error: AuthError = e
-      console.error('Reset password error:', error.response?.data || error.message)
-      throw new Error(error.response?.data?.message || 'Ошибка сброса пароля')
+    } catch (error) {
+      const err = error as AxiosError<AuthError>
+      console.error('Reset password error:', err.response?.data || err.message)
+      throw new Error(err.response?.data?.message || 'Ошибка сброса пароля')
     }
   }
 
@@ -197,7 +223,7 @@ export class AuthService {
     return !!this.token
   }
 
-  getUser(): any {
+  getUser(): User | null {
     return this.user
   }
 

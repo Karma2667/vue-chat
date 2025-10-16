@@ -1,18 +1,20 @@
-<!-- ChatWidget.vue -->
+<!-- components/ChatWidget.vue -->
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import ChatToggle from './ChatToggle.vue'
 import Backdrop from './Backdrop.vue'
 import ChatPanel from './ChatPanel.vue'
-import UserSearch from './UserSearch.vue' // Импортируем UserSearch
+import UserSearch from './UserSearch.vue'
+import { createPrivateChat } from '../../utils/createPrivateChat'
+import type { Conversation } from '../../utils/createPrivateChat'
 
 const isOpen = ref(false)
 const currentScreen = ref<'dialogs' | 'chat'>('dialogs')
 const activeChat = ref<any>(null)
 const inited = ref(false)
-const showSearch = ref(false) // Состояние для UserSearch
+const showSearch = ref(false)
 
-const dialogs = ref([
+const dialogs = ref<{ id: number; from: string; type?: string }[]>([
   { id: 1, from: 'Администрация' },
   { id: 2, from: 'Макс' }
 ])
@@ -33,19 +35,21 @@ onMounted(() => requestAnimationFrame(() => (inited.value = true)))
 
 function toggleWidget() {
   isOpen.value = !isOpen.value
-  if (!isOpen.value) showSearch.value = false // Закрываем поиск при закрытии виджета
+  if (!isOpen.value) {
+    showSearch.value = false
+  }
   console.log('Widget toggled:', isOpen.value)
 }
 
 function openChat(dialog: any) {
   activeChat.value = dialog
   currentScreen.value = 'chat'
-  console.log('Chat opened:', dialog)
+  console.log('Chat opened with dialog:', dialog)
 }
 
 function goBack() {
   currentScreen.value = 'dialogs'
-  showSearch.value = false // Закрываем поиск при возврате
+  showSearch.value = false
   console.log('Go back to dialogs')
 }
 
@@ -53,10 +57,40 @@ function openSearch() {
   showSearch.value = true
 }
 
-function handleSelectUser(user: any) {
-  console.log('Selected user:', user)
-  // Здесь можно добавить логику, например, открыть чат с пользователем
-  showSearch.value = false
+async function handleSelectUser(user: { id: number; username: string }) {
+  console.log('User selected for chat creation:', user)
+
+  // Проверяем, существует ли диалог с этим пользователем
+  const existingDialog = dialogs.value.find(d => d.from === user.username && d.type === 'private_chat')
+
+  if (existingDialog) {
+    console.log('Existing dialog found:', existingDialog)
+    openChat(existingDialog)
+    showSearch.value = false
+    return
+  }
+
+  // Создаём новый чат, если его нет
+  try {
+    console.log(`Начало создания чата с пользователем: ${user.username} (ID: ${user.id})`)
+    const conversation = await createPrivateChat(user.id)
+    console.log('Успешно создан чат:', conversation)
+    const newDialog = {
+      id: conversation.id,
+      from: user.username,
+      type: 'private_chat'
+    }
+    dialogs.value.push(newDialog)
+    chats.value[newDialog.id] = []
+    console.log('New dialog added to dialogs:', newDialog)
+    console.log('Chats updated for ID:', newDialog.id)
+    openChat(newDialog)
+  } catch (err: any) {
+    console.error('Ошибка создания чата:', err.message)
+  } finally {
+    showSearch.value = false
+    console.log('Завершение процесса создания чата')
+  }
 }
 
 const widgetClasses = computed(() => ({
@@ -88,14 +122,14 @@ const widgetClasses = computed(() => ({
         :chats="chats"
         @open-chat="openChat"
         @go-back="goBack"
-        @search="openSearch" 
+        @search="openSearch"
       />
     </transition>
 
-    <!-- UserSearch -->
     <UserSearch
       :visible="showSearch"
       :conversation-id="activeChat?.id"
+      :dialogs="dialogs"
       @select-user="handleSelectUser"
       @close="showSearch = false"
     />
@@ -103,6 +137,7 @@ const widgetClasses = computed(() => ({
 </template>
 
 <style scoped>
+/* Стили остаются без изменений */
 .messenger-widget {
   position: fixed;
   inset: 0;
