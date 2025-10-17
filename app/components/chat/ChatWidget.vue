@@ -1,102 +1,116 @@
 <!-- components/ChatWidget.vue -->
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import ChatToggle from './ChatToggle.vue'
-import Backdrop from './Backdrop.vue'
-import ChatPanel from './ChatPanel.vue'
-import UserSearch from './UserSearch.vue'
-import { createPrivateChat } from '../../utils/createPrivateChat'
-import type { Conversation } from '../../utils/createPrivateChat'
+import { ref, onMounted, computed } from 'vue';
+import ChatToggle from './ChatToggle.vue';
+import Backdrop from './Backdrop.vue';
+import ChatPanel from './ChatPanel.vue';
+import UserSearch from './UserSearch.vue';
+import { fetchConversations, type Conversation } from '../../utils/conversations';
+import { createPrivateChat } from '../../utils/createPrivateChat';
 
-const isOpen = ref(false)
-const currentScreen = ref<'dialogs' | 'chat'>('dialogs')
-const activeChat = ref<any>(null)
-const inited = ref(false)
-const showSearch = ref(false)
+const isOpen = ref(false);
+const currentScreen = ref<'dialogs' | 'chat'>('dialogs');
+const activeChat = ref<any>(null);
+const inited = ref(false);
+const showSearch = ref(false);
 
-const dialogs = ref<{ id: number; from: string; type?: string }[]>([
-  { id: 1, from: 'Администрация' },
-  { id: 2, from: 'Макс' }
-])
+// Инициализируем диалоги и чаты
+const dialogs = ref<{ id: number; from: string; type?: string }[]>([]);
+const chats = ref<Record<number, any[]>>({});
 
-const chats = ref<Record<number, any[]>>({
-  1: [
-    { id: 1, text: 'Привет! Это Администрация.', self: false, time: '10:25', author: 'Администрация' },
-    { id: 2, text: 'Вы: Спасибо, получил.', self: true, time: '10:27', author: 'Вы' }
-  ],
-  2: [
-    { id: 1, text: 'Привет, как дела?', self: false, time: '21:46', author: 'Макс' },
-    { id: 2, text: 'Все отлично, а у тебя?', self: true, time: '21:47', author: 'Вы' },
-    { id: 3, text: 'Тоже нормально!', self: false, time: '21:48', author: 'Макс' }
-  ]
-})
+// Загрузка диалогов с сервера
+async function loadConversations() {
+  try {
+    const response = await fetchConversations(1, 20);
+    dialogs.value = response.conversations.map((conv: Conversation) => ({
+      id: conv.id,
+      from: conv.users?.[0]?.username || conv.name || 'Без имени',
+      type: conv.conversation_type,
+    }));
+    // Инициализируем пустые чаты для каждого диалога
+    response.conversations.forEach((conv) => {
+      if (!chats.value[conv.id]) {
+        chats.value[conv.id] = [];
+      }
+    });
+    console.log('Диалоги загружены:', dialogs.value);
+  } catch (error: any) {
+    console.error('Не удалось загрузить диалоги:', error.message);
+  }
+}
 
-onMounted(() => requestAnimationFrame(() => (inited.value = true)))
+onMounted(() => {
+  requestAnimationFrame(() => (inited.value = true));
+  // Загружаем диалоги при монтировании
+  loadConversations();
+});
 
 function toggleWidget() {
-  isOpen.value = !isOpen.value
+  isOpen.value = !isOpen.value;
   if (!isOpen.value) {
-    showSearch.value = false
+    showSearch.value = false;
   }
-  console.log('Widget toggled:', isOpen.value)
+  console.log('Widget toggled:', isOpen.value);
 }
 
 function openChat(dialog: any) {
-  activeChat.value = dialog
-  currentScreen.value = 'chat'
-  console.log('Chat opened with dialog:', dialog)
+  activeChat.value = dialog;
+  currentScreen.value = 'chat';
+  console.log('Chat opened with dialog:', dialog);
 }
 
 function goBack() {
-  currentScreen.value = 'dialogs'
-  showSearch.value = false
-  console.log('Go back to dialogs')
+  currentScreen.value = 'dialogs';
+  showSearch.value = false;
+  console.log('Go back to dialogs');
 }
 
 function openSearch() {
-  showSearch.value = true
+  showSearch.value = true;
 }
 
 async function handleSelectUser(user: { id: number; username: string }) {
-  console.log('User selected for chat creation:', user)
+  console.log('User selected for chat creation:', user);
 
   // Проверяем, существует ли диалог с этим пользователем
-  const existingDialog = dialogs.value.find(d => d.from === user.username && d.type === 'private_chat')
+  const existingDialog = dialogs.value.find(
+    (d) => d.from === user.username && d.type === 'private_chat'
+  );
 
   if (existingDialog) {
-    console.log('Existing dialog found:', existingDialog)
-    openChat(existingDialog)
-    showSearch.value = false
-    return
+    console.log('Existing dialog found:', existingDialog);
+    openChat(existingDialog);
+    showSearch.value = false;
+    return;
   }
 
   // Создаём новый чат, если его нет
   try {
-    console.log(`Начало создания чата с пользователем: ${user.username} (ID: ${user.id})`)
-    const conversation = await createPrivateChat(user.id)
-    console.log('Успешно создан чат:', conversation)
+    console.log(`Начало создания чата с пользователем: ${user.username} (ID: ${user.id})`);
+    const conversation = await createPrivateChat(user.id);
+    console.log('Успешно создан чат:', conversation);
     const newDialog = {
       id: conversation.id,
       from: user.username,
-      type: 'private_chat'
-    }
-    dialogs.value.push(newDialog)
-    chats.value[newDialog.id] = []
-    console.log('New dialog added to dialogs:', newDialog)
-    console.log('Chats updated for ID:', newDialog.id)
-    openChat(newDialog)
+      type: conversation.conversation_type,
+    };
+    dialogs.value.push(newDialog);
+    chats.value[newDialog.id] = [];
+    console.log('New dialog added to dialogs:', newDialog);
+    console.log('Chats updated for ID:', newDialog.id);
+    openChat(newDialog);
   } catch (err: any) {
-    console.error('Ошибка создания чата:', err.message)
+    console.error('Ошибка создания чата:', err.message);
   } finally {
-    showSearch.value = false
-    console.log('Завершение процесса создания чата')
+    showSearch.value = false;
+    console.log('Завершение процесса создания чата');
   }
 }
 
 const widgetClasses = computed(() => ({
   'is-open': isOpen.value,
-  'panel-inited': inited.value
-}))
+  'panel-inited': inited.value,
+}));
 </script>
 
 <template>
