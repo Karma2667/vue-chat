@@ -9,16 +9,23 @@ import ChatHeader from './ChatHeader.vue';
 const props = defineProps<{
   isOpen: boolean;
   currentScreen: 'dialogs' | 'chat';
-  dialogs: any[];
-  activeChat: any;
-  chats: Record<number, any[]>;
+  dialogs: Array<{ id: number; from: string; type?: string }>;
+  activeChat: { id: number; from: string; type?: string } | null;
+  chats: Record<number, Array<{
+    id: number;
+    text: string;
+    time: string;
+    author: string;
+    self: boolean;
+    reply: any;
+  }>>;
 }>();
 
 const emit = defineEmits<{
-  (e: 'open-chat', dialog: any): void;
+  (e: 'open-chat', dialog: { id: number; from: string; type?: string }): void;
   (e: 'go-back'): void;
   (e: 'search'): void;
-  (e: 'send-message', conversationId: number, content: string | null, replyToMessageId?: number): void; // Добавляем send-message
+  (e: 'send-message', conversationId: number, content: string | null, replyToMessageId?: number): void;
 }>();
 </script>
 
@@ -36,7 +43,7 @@ const emit = defineEmits<{
         />
         <ChatHeader
           v-else
-          :title="props.activeChat?.from || ''"
+          :title="props.activeChat?.from || 'Чат'"
           :is-chat="true"
           @go-back="emit('go-back')"
         />

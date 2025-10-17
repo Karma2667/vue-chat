@@ -18,7 +18,12 @@ const activeChat = ref<any>(null);
 const inited = ref(false);
 const showSearch = ref(false);
 
-const dialogs = ref<{ id: number; from: string; type?: string }[]>([]);
+const dialogs = ref<Array<{
+  id: number;
+  from: string;
+  type?: string;
+  lastMessage?: { content: string; created_at: string; username: string };
+}>>([]);
 const chats = ref<Record<number, any[]>>({});
 
 async function loadConversations() {
@@ -26,8 +31,18 @@ async function loadConversations() {
     const response = await fetchConversations(1, 20);
     dialogs.value = response.conversations.map((conv: Conversation) => ({
       id: conv.id,
-      from: conv.users?.[0]?.username || conv.name || 'Без имени',
+      from: conv.other_user_info?.username || conv.name || 'Без имени',
       type: conv.conversation_type,
+      lastMessage: conv.last_message_preview
+        ? {
+            content: conv.last_message_preview.content,
+            created_at: new Date(conv.last_message_preview.created_at).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+            username: conv.last_message_preview.username,
+          }
+        : undefined,
     }));
     response.conversations.forEach((conv) => {
       if (!chats.value[conv.id]) {
