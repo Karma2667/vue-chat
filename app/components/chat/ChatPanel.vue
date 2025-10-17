@@ -1,24 +1,25 @@
-<!-- ChatPanel.vue -->
+<!-- components/ChatPanel.vue -->
 <script setup lang="ts">
-import { defineProps, defineEmits } from 'vue'
-import DialogList from './DialogList.vue'
-import ChatWindow from './ChatWindow.vue'
-import ChatListHeader from './ChatListHeader.vue'
-import MessageActions from './MessageActions.vue'
+import { defineProps, defineEmits } from 'vue';
+import DialogList from './DialogList.vue';
+import ChatWindow from './ChatWindow.vue';
+import ChatListHeader from './ChatListHeader.vue';
+import ChatHeader from './ChatHeader.vue';
 
 const props = defineProps<{
-  isOpen: boolean
-  currentScreen: 'dialogs' | 'chat'
-  dialogs: any[]
-  activeChat: any
-  chats: Record<number, any[]>
-}>()
+  isOpen: boolean;
+  currentScreen: 'dialogs' | 'chat';
+  dialogs: any[];
+  activeChat: any;
+  chats: Record<number, any[]>;
+}>();
 
 const emit = defineEmits<{
-  (e: 'open-chat', dialog: any): void
-  (e: 'go-back'): void
-  (e: 'search'): void // Добавляем событие поиска
-}>()
+  (e: 'open-chat', dialog: any): void;
+  (e: 'go-back'): void;
+  (e: 'search'): void;
+  (e: 'send-message', conversationId: number, content: string | null, replyToMessageId?: number): void; // Добавляем send-message
+}>();
 </script>
 
 <template>
@@ -28,7 +29,7 @@ const emit = defineEmits<{
         <ChatListHeader
           v-if="props.currentScreen === 'dialogs'"
           @tab-change="key => console.log('Переключение вкладки', key)"
-          @search="emit('search')" 
+          @search="emit('search')"
           @new-group-chat="console.log('Новая группа')"
           @settings="console.log('Настройки')"
           @selected="console.log('Выбраны чаты')"
@@ -53,7 +54,8 @@ const emit = defineEmits<{
           v-else
           :active-chat="props.activeChat"
           :chats="props.chats"
-          @search="emit('search')" 
+          @search="emit('search')"
+          @send-message="(conversationId, content, replyToMessageId) => emit('send-message', conversationId, content, replyToMessageId)"
         />
       </div>
     </transition>

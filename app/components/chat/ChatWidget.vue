@@ -7,6 +7,10 @@ import ChatPanel from './ChatPanel.vue';
 import UserSearch from './UserSearch.vue';
 import { fetchConversations, type Conversation } from '../../utils/conversations';
 import { createPrivateChat } from '../../utils/createPrivateChat';
+import { sendMessage, fetchMessages } from '../../utils/messages';
+import { authService } from '../../utils/auth';
+
+const currentUserId = ref<number | null>(null);
 
 const isOpen = ref(false);
 const currentScreen = ref<'dialogs' | 'chat'>('dialogs');
@@ -14,11 +18,9 @@ const activeChat = ref<any>(null);
 const inited = ref(false);
 const showSearch = ref(false);
 
-// Инициализируем диалоги и чаты
 const dialogs = ref<{ id: number; from: string; type?: string }[]>([]);
 const chats = ref<Record<number, any[]>>({});
 
-// Загрузка диалогов с сервера
 async function loadConversations() {
   try {
     const response = await fetchConversations(1, 20);
@@ -27,7 +29,6 @@ async function loadConversations() {
       from: conv.users?.[0]?.username || conv.name || 'Без имени',
       type: conv.conversation_type,
     }));
-    // Инициализируем пустые чаты для каждого диалога
     response.conversations.forEach((conv) => {
       if (!chats.value[conv.id]) {
         chats.value[conv.id] = [];
@@ -39,10 +40,48 @@ async function loadConversations() {
   }
 }
 
+async function openChat(dialog: any) {
+  activeChat.value = dialog;
+  currentScreen.value = 'chat';
+  console.log('Chat opened with dialog:', dialog);
+
+  if (dialog.id) {
+    try {
+      const response = await fetchMessages(dialog.id);
+      chats.value[dialog.id] = response.messages.map((msg) => ({
+        id: msg.id,
+        text: msg.content || '',
+        time: msg.created_at
+          ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        author: msg.user?.username || 'Unknown',
+        self: currentUserId.value !== null && msg.user_id === currentUserId.value,
+        reply: msg.reply_to
+          ? chats.value[dialog.id]?.find((m) => m.id === msg.reply_to)
+          : null,
+      }));
+      console.log('Сообщения для чата загружены:', chats.value[dialog.id]);
+    } catch (error: any) {
+      console.error('Ошибка при загрузке сообщений:', error.message);
+      alert('Ошибка загрузки сообщений: ' + error.message);
+    }
+  } else {
+    console.error('Ошибка: dialog.id не определён при открытии чата');
+  }
+}
+
 onMounted(() => {
   requestAnimationFrame(() => (inited.value = true));
-  // Загружаем диалоги при монтировании
   loadConversations();
+  const user = authService.getUser();
+  if (user && user.id) {
+    currentUserId.value = user.id;
+    console.log('Current user ID:', currentUserId.value);
+  } else {
+    console.error('Не удалось получить ID текущего пользователя');
+  }
+  // Отладка состояния isOpen
+  console.log('Initial isOpen:', isOpen.value);
 });
 
 function toggleWidget() {
@@ -51,12 +90,6 @@ function toggleWidget() {
     showSearch.value = false;
   }
   console.log('Widget toggled:', isOpen.value);
-}
-
-function openChat(dialog: any) {
-  activeChat.value = dialog;
-  currentScreen.value = 'chat';
-  console.log('Chat opened with dialog:', dialog);
 }
 
 function goBack() {
@@ -71,8 +104,6 @@ function openSearch() {
 
 async function handleSelectUser(user: { id: number; username: string }) {
   console.log('User selected for chat creation:', user);
-
-  // Проверяем, существует ли диалог с этим пользователем
   const existingDialog = dialogs.value.find(
     (d) => d.from === user.username && d.type === 'private_chat'
   );
@@ -84,7 +115,6 @@ async function handleSelectUser(user: { id: number; username: string }) {
     return;
   }
 
-  // Создаём новый чат, если его нет
   try {
     console.log(`Начало создания чата с пользователем: ${user.username} (ID: ${user.id})`);
     const conversation = await createPrivateChat(user.id);
@@ -101,9 +131,52 @@ async function handleSelectUser(user: { id: number; username: string }) {
     openChat(newDialog);
   } catch (err: any) {
     console.error('Ошибка создания чата:', err.message);
+    alert('Ошибка создания чата: ' + err.message);
   } finally {
     showSearch.value = false;
     console.log('Завершение процесса создания чата');
+  }
+}
+
+async function handleSendMessage(conversationId: number, content: string | null, replyToMessageId?: number) {
+  console.log('handleSendMessage вызван:', { conversationId, content, replyToMessageId });
+  if (!conversationId) {
+    console.error('Ошибка: conversationId не определён');
+    alert('Ошибка: не выбран чат');
+    return;
+  }
+
+  try {
+    const request = {
+      content,
+      reply_to_message_id: replyToMessageId,
+    };
+    console.log('Отправка сообщения через sendMessage:', request);
+    const response = await sendMessage(conversationId, request);
+    console.log('Ответ от sendMessage:', response);
+
+    const user = authService.getUser();
+    const username = user?.username || 'Вы';
+
+    const newMessage = {
+      id: response.id,
+      text: response.content || '',
+      time: response.created_at
+        ? new Date(response.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      author: response.user?.username || username,
+      self: currentUserId.value !== null && response.user_id === currentUserId.value,
+      reply: replyToMessageId
+        ? chats.value[conversationId]?.find((m) => m.id === replyToMessageId)
+        : null,
+    };
+
+    if (!chats.value[conversationId]) chats.value[conversationId] = [];
+    chats.value[conversationId].push(newMessage);
+    console.log('Сообщение добавлено локально:', newMessage);
+  } catch (error: any) {
+    console.error('Ошибка в handleSendMessage:', error.message, error);
+    alert('Ошибка отправки: ' + error.message);
   }
 }
 
@@ -137,6 +210,7 @@ const widgetClasses = computed(() => ({
         @open-chat="openChat"
         @go-back="goBack"
         @search="openSearch"
+        @send-message="handleSendMessage"
       />
     </transition>
 
@@ -151,7 +225,6 @@ const widgetClasses = computed(() => ({
 </template>
 
 <style scoped>
-/* Стили остаются без изменений */
 .messenger-widget {
   position: fixed;
   inset: 0;

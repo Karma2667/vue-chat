@@ -1,7 +1,6 @@
 // utils/conversations.ts
 import { authService } from './auth';
 
-// Интерфейсы для данных с сервера
 interface Pagination {
   page: number;
   items: number;
@@ -23,14 +22,13 @@ interface ConversationsResponse {
   };
 }
 
-// Функция для получения списка диалогов
 export async function fetchConversations(
   page: number = 1,
   items: number = 20
 ): Promise<ConversationsResponse> {
   try {
     const response = await authService.makeRequest<ConversationsResponse>(
-      `/api/v1/conversations?page=${page}&items=${items}`,
+      `/conversations?page=${page}&items=${items}`, // Убрали /api/v1
       'GET'
     );
     console.log('Диалоги загружены:', response);

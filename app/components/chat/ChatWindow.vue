@@ -1,73 +1,61 @@
 <!-- ChatWindow.vue -->
 <script setup lang="ts">
-import { defineProps, defineEmits, ref, computed, nextTick } from 'vue'
-import MessageItem from './MessageItem.vue'
-import MessageInput from './MessageInput.vue'
+import { defineProps, defineEmits, ref, computed, nextTick } from 'vue';
+import MessageItem from './MessageItem.vue';
+import MessageInput from './MessageInput.vue';
 
 const props = defineProps<{
-  activeChat: any
-  chats: Record<number, any[]>
-}>()
+  activeChat: any;
+  chats: Record<number, any[]>;
+}>();
 
 const emit = defineEmits<{
-  (e: 'search'): void // Добавляем событие search
-}>()
+  (e: 'search'): void;
+  (e: 'send-message', conversationId: number, content: string | null, replyToMessageId?: number): void;
+}>();
 
-const messagesContainer = ref<HTMLDivElement | null>(null)
-const replyingTo = ref<number | null>(null)
+const messagesContainer = ref<HTMLDivElement | null>(null);
+const replyingTo = ref<number | undefined>(undefined);
 
 const messages = computed(() => {
-  if (!props.activeChat) return []
-  return props.chats[props.activeChat.id] || []
-})
+  if (!props.activeChat) return [];
+  return props.chats[props.activeChat.id] || [];
+});
 
 function setReply(id: number) {
-  console.log('Setting reply to ID:', id)
-  replyingTo.value = id
-}
-
-function sendMessage(text: string, attachments?: File[]) {
-  if (!props.activeChat || (!text.trim() && (!attachments || attachments.length === 0))) return
-
-  const id = props.activeChat.id
-  if (!props.chats[id]) props.chats[id] = []
-
-  const replyMsg = replyingTo.value
-    ? props.chats[id].find(m => m.id === replyingTo.value)
-    : null
-  console.log('Reply message:', replyMsg)
-
-  const mappedAttachments = attachments?.map(file => ({
-    type: file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'file',
-    url: URL.createObjectURL(file),
-    name: file.name,
-    size: `${(file.size / 1024).toFixed(1)} KB`
-  })) || []
-
-  const msg = {
-    id: Date.now(),
-    text,
-    attachments: mappedAttachments,
-    self: true,
-    author: 'Вы',
-    time: new Date().toLocaleTimeString().slice(0, 5),
-    reply: replyMsg ? { author: replyMsg.author, text: replyMsg.text } : undefined
-  }
-  console.log('New message:', msg)
-
-  props.chats[id].push(msg)
-  replyingTo.value = null
-
-  nextTick(() => {
-    messagesContainer.value?.scrollTo({
-      top: messagesContainer.value.scrollHeight,
-      behavior: 'smooth'
-    })
-  })
+  console.log('Setting reply to ID:', id);
+  replyingTo.value = id;
 }
 
 function handleSearch() {
-  emit('search') // Эмитим событие поиска
+  emit('search');
+}
+
+function sendMessage(text: string, attachments?: File[]) {
+  if (!props.activeChat || (!text.trim() && (!attachments || attachments.length === 0))) {
+    console.log('Пустое сообщение или только вложения, игнорируем');
+    return;
+  }
+
+  if (attachments && attachments.length > 0) {
+    console.log('Вложения пока не поддерживаются, игнорируем:', attachments);
+    return;
+  }
+
+  const content = text.trim() || null;
+  const conversationId = props.activeChat.id;
+  const replyToMessageId = replyingTo.value;
+
+  emit('send-message', conversationId, content, replyToMessageId);
+  console.log('Эмит send-message:', { conversationId, content, replyToMessageId });
+
+  replyingTo.value = undefined;
+  nextTick(() => {
+    messagesContainer.value?.scrollTo({
+      top: messagesContainer.value.scrollHeight,
+      behavior: 'smooth',
+    });
+  });
 }
 </script>
 
@@ -93,7 +81,9 @@ function handleSearch() {
       @send="sendMessage"
       :replying-to="replyingTo ? messages.find(m => m.id === replyingTo)?.text : ''"
       :replying-author="replyingTo ? messages.find(m => m.id === replyingTo)?.author : ''"
-      @cancel-reply="replyingTo = null"
+      @cancel-reply="replyingTo = undefined"
+      @voice="() => console.log('Voice не реализовано')"
+      @video="() => console.log('Video не реализовано')"
     />
   </div>
 </template>
