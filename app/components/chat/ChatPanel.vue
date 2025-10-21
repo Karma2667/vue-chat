@@ -1,4 +1,4 @@
-<!-- components/ChatPanel.vue -->
+```vue
 <script setup lang="ts">
 import { defineProps, defineEmits } from 'vue';
 import DialogList from './DialogList.vue';
@@ -6,32 +6,45 @@ import ChatWindow from './ChatWindow.vue';
 import ChatListHeader from './ChatListHeader.vue';
 import ChatHeader from './ChatHeader.vue';
 
+interface Attachment {
+  type: 'image' | 'video' | 'file';
+  url: string;
+  name?: string;
+  size?: string;
+}
+
+interface ChatMessage {
+  id: number;
+  text: string;
+  time: string;
+  author: string;
+  self: boolean;
+  reply: { id: number; author?: string; text: string } | null;
+  attachments: Attachment[]; // Убираем undefined
+}
+
+interface Dialog {
+  id: number;
+  from: string;
+  type?: string;
+  lastMessage?: { content: string; created_at: string; username: string };
+}
+
 const props = defineProps<{
   isOpen: boolean;
   currentScreen: 'dialogs' | 'chat';
-  dialogs: Array<{ id: number; from: string; type?: string }>;
-  activeChat: { id: number; from: string; type?: string } | null;
-  chats: Record<number, Array<{
-    id: number;
-    text: string;
-    time: string;
-    author: string;
-    self: boolean;
-    reply: any;
-    attachments?: Array<{
-      type: 'image' | 'video' | 'file';
-      url: string;
-      name?: string;
-      size?: string;
-    }>;
-  }>>;
+  dialogs: Dialog[];
+  activeChat: Dialog | null;
+  chats: Record<number, ChatMessage[]>;
 }>();
 
 const emit = defineEmits<{
-  (e: 'open-chat', dialog: { id: number; from: string; type?: string }): void;
+  (e: 'open-chat', dialog: Dialog): void;
   (e: 'go-back'): void;
   (e: 'search'): void;
   (e: 'send-message', conversationId: number, content: string | null, replyToMessageId?: number, attachment?: File): void;
+  (e: 'scroll-to-reply', id: number): void; // Добавляем событие
+  (e: 'preview', attachment: Attachment): void; // Добавляем событие preview
 }>();
 </script>
 
@@ -69,6 +82,8 @@ const emit = defineEmits<{
           :chats="props.chats"
           @search="emit('search')"
           @send-message="(conversationId, content, replyToMessageId, attachment) => emit('send-message', conversationId, content, replyToMessageId, attachment)"
+          @scroll-to-reply="id => emit('scroll-to-reply', id)"
+          @preview="attachment => emit('preview', attachment)"
         />
       </div>
     </transition>

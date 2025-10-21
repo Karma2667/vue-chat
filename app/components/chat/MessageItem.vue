@@ -1,3 +1,4 @@
+```vue
 <script setup lang="ts">
 import { defineProps, defineEmits, ref } from 'vue';
 import MessageText from './MessageText.vue';
@@ -15,13 +16,14 @@ const props = defineProps<{
     name?: string;
     size?: string;
   }[];
-  reply?: { author?: string; text: string } | null;
+  reply?: { id: number; author?: string; text: string } | null; // Добавляем id
 }>();
 
 const emit = defineEmits<{
   (e: 'reply', id: number): void;
   (e: 'search'): void;
   (e: 'preview', attachment: { type: 'image' | 'video' | 'file'; url: string; name?: string; size?: string }): void;
+  (e: 'scroll-to-reply', id: number): void; // Добавляем событие
 }>();
 
 const reactions = ref<string[]>([]);
@@ -48,10 +50,15 @@ function handleSearch() {
 function handlePreview(attachment: { type: 'image' | 'video' | 'file'; url: string; name?: string; size?: string }) {
   emit('preview', attachment);
 }
+
+function handleScrollToReply(id: number) {
+  console.log('Scroll to reply ID:', id);
+  emit('scroll-to-reply', id);
+}
 </script>
 
 <template>
-  <div :class="['message-item', { self: props.self }]">
+  <div :class="['message-item', { self: props.self }]" :id="`message-${props.id}`">
     <!-- Основной текст + reply -->
     <MessageText
       :text="props.text"
@@ -62,7 +69,7 @@ function handlePreview(attachment: { type: 'image' | 'video' | 'file'; url: stri
       :reply="props.reply"
       @reaction-selected="onReactionSelected"
       @reply="handleReply"
-      @search="handleSearch"
+      @scroll-to-reply="handleScrollToReply"
     />
 
     <!-- Вложения -->
@@ -96,8 +103,6 @@ function handlePreview(attachment: { type: 'image' | 'video' | 'file'; url: stri
   color: #fff;
   align-self: flex-end;
 }
-
-
 
 .attachments {
   display: flex;

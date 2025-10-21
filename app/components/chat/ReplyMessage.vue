@@ -1,15 +1,26 @@
+
 <script setup lang="ts">
-import { defineProps } from 'vue'
+import { defineProps, defineEmits } from 'vue';
 
 const props = defineProps<{
-  author?: string
-  text: string
-  self?: boolean
-}>()
+  id: number;
+  author?: string;
+  text: string;
+  self?: boolean;
+}>();
+
+const emit = defineEmits<{
+  (e: 'scroll-to-reply', id: number): void;
+}>();
+
+function handleClick() {
+  console.log('Clicked reply with ID:', props.id);
+  emit('scroll-to-reply', props.id);
+}
 </script>
 
 <template>
-  <div :class="['reply-message', { self: props.self }]">
+  <div :class="['reply-message', { self: props.self }]" @click="handleClick">
     <div class="reply-author">{{ props.author || 'Unknown' }}</div>
     <div class="reply-text">{{ props.text }}</div>
   </div>
@@ -22,11 +33,21 @@ const props = defineProps<{
   padding: 0.4rem 0.6rem;
   border-radius: 8px;
   margin-bottom: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.reply-message:hover {
+  background: #e2e8f0;
 }
 
 .reply-message.self {
   border-left-color: #fff;
   background: rgba(255, 255, 255, 0.2);
+}
+
+.reply-message.self:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .reply-author {

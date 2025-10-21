@@ -1,8 +1,9 @@
+
 <script setup lang="ts">
-import { ref, defineProps, defineEmits } from 'vue'
-import MessageActions from './MessageActions.vue'
-import ReplyMessage from './ReplyMessage.vue'
-import type { PropType } from 'vue'
+import { ref, defineProps, defineEmits } from 'vue';
+import MessageActions from './MessageActions.vue';
+import ReplyMessage from './ReplyMessage.vue';
+import type { PropType } from 'vue';
 
 const props = defineProps({
   text: { type: String, required: true },
@@ -11,24 +12,30 @@ const props = defineProps({
   self: { type: Boolean },
   reactions: { type: Array as PropType<string[]>, default: () => [] },
   reply: {
-    type: Object as PropType<{ author?: string; text: string } | null>,
-    default: null
-  }
-})
+    type: Object as PropType<{ id: number; author?: string; text: string } | null>, // Добавляем id
+    default: null,
+  },
+});
 
 const emit = defineEmits<{
-  (e: 'reaction-selected', emoji: string): void
-  (e: 'reply'): void
-}>()
+  (e: 'reaction-selected', emoji: string): void;
+  (e: 'reply'): void;
+  (e: 'scroll-to-reply', id: number): void; // Добавляем событие
+}>();
 
-const hover = ref(false)
+const hover = ref(false);
 
 function addReaction(emoji: string) {
-  emit('reaction-selected', emoji)
+  emit('reaction-selected', emoji);
 }
 
 function reply() {
-  emit('reply')
+  emit('reply');
+}
+
+function handleScrollToReply(id: number) {
+  console.log('Scroll to reply ID:', id);
+  emit('scroll-to-reply', id);
 }
 </script>
 
@@ -49,15 +56,17 @@ function reply() {
     <!-- Reply блок -->
     <ReplyMessage
       v-if="props.reply"
+      :id="props.reply.id"
       :author="props.reply.author"
       :text="props.reply.text"
       :self="props.self"
+      @scroll-to-reply="handleScrollToReply"
     />
 
     <!-- Основной текст -->
     <p class="text">{{ props.text }}</p>
 
-    <!-- Реакции (оставляем здесь, но без клика для удаления, чтобы не дублировать логику) -->
+    <!-- Реакции -->
     <div v-if="props.reactions.length" class="reactions-row">
       <span v-for="(r, i) in props.reactions" :key="i" class="reaction">{{ r }}</span>
     </div>

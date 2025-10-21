@@ -1,4 +1,4 @@
-<!-- components/MessageInput.vue -->
+```vue
 <script setup lang="ts">
 import { defineProps, defineEmits, ref, nextTick } from 'vue';
 import EmojiPicker from './EmojiPicker.vue';
@@ -8,6 +8,7 @@ import ReplyMessage from './ReplyMessage.vue';
 const props = defineProps<{
   replyingTo?: string;
   replyingAuthor?: string;
+  replyingId?: number; // Добавляем пропс
 }>();
 
 const emit = defineEmits<{
@@ -15,6 +16,7 @@ const emit = defineEmits<{
   (e: 'voice'): void;
   (e: 'video'): void;
   (e: 'cancel-reply'): void;
+  (e: 'scroll-to-reply', id: number): void; // Добавляем событие
 }>();
 
 const message = ref('');
@@ -90,13 +92,23 @@ function removeAttachment(index: number) {
 function cancelReply() {
   emit('cancel-reply');
 }
+
+function handleScrollToReply(id: number) {
+  console.log('Scroll to reply ID:', id);
+  emit('scroll-to-reply', id);
+}
 </script>
 
 <template>
   <div class="message-input">
     <!-- Показываем, на что отвечаем -->
     <div v-if="props.replyingTo" class="replying-to">
-      <ReplyMessage :author="props.replyingAuthor" :text="props.replyingTo" />
+      <ReplyMessage
+        :id="props.replyingId!"
+        :author="props.replyingAuthor"
+        :text="props.replyingTo"
+        @scroll-to-reply="handleScrollToReply"
+      />
       <button class="cancel-btn" @click="cancelReply">
         <i class="fas fa-times"></i>
       </button>
