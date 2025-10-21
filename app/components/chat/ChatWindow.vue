@@ -1,6 +1,5 @@
-<!-- components/ChatWindow.vue -->
 <script setup lang="ts">
-import { defineProps, defineEmits, ref, computed, nextTick } from 'vue';
+import { defineProps, defineEmits, ref, computed, nextTick, watch } from 'vue';
 import MessageItem from './MessageItem.vue';
 import MessageInput from './MessageInput.vue';
 
@@ -27,6 +26,23 @@ const replyingMessage = computed(() => {
   return messages.value.find((m) => m.id === replyingTo.value) || null;
 });
 
+// Функция для прокрутки вниз
+function scrollToBottom(behavior: 'smooth' | 'auto' = 'smooth') {
+  nextTick(() => {
+    if (messagesContainer.value) {
+      messagesContainer.value.scrollTo({
+        top: messagesContainer.value.scrollHeight,
+        behavior,
+      });
+    }
+  });
+}
+
+// Прокрутка вниз при изменении сообщений (например, при загрузке чата)
+watch(messages, () => {
+  scrollToBottom('auto'); // Используем 'auto' для мгновенной прокрутки при загрузке
+}, { deep: true });
+
 async function sendMessage(text: string, attachments?: File[]) {
   if (!props.activeChat || (!text.trim() && (!attachments || attachments.length === 0))) {
     console.log('Пустое сообщение или нет вложений, игнорируем');
@@ -44,18 +60,12 @@ async function sendMessage(text: string, attachments?: File[]) {
 
   try {
     emit('send-message', conversationId, content, replyToMessageId, attachment);
+    replyingTo.value = undefined;
+    scrollToBottom('smooth'); // Прокрутка вниз после отправки сообщения
   } catch (error: any) {
     console.error('Ошибка при отправке сообщения:', error.message);
     alert(`Ошибка: ${error.message}`);
   }
-
-  replyingTo.value = undefined;
-  nextTick(() => {
-    messagesContainer.value?.scrollTo({
-      top: messagesContainer.value.scrollHeight,
-      behavior: 'smooth',
-    });
-  });
 }
 
 function setReply(id: number) {
