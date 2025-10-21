@@ -33,20 +33,47 @@ export interface SendMessageResponse {
   message: Message;
 }
 
-export async function fetchMessages(conversationId: number, page: number = 1, items: number = 20) {
+export async function fetchMessages(conversationId: number, items: number = 20): Promise<Message[]> {
+  let allMessages: Message[] = [];
+  let currentPage = 1;
+  let hasMoreMessages = true;
+
   try {
-    const response = await authService.makeRequest<{
-      messages: Message[];
-      total_pages: number;
-      current_page: number;
-    }>(`/conversations/${conversationId}/messages?page=${page}&items=${items}`, 'GET');
-    console.log('Сообщения загружены:', response);
-    response.messages.forEach((msg) => {
-      if (msg.attachment && (!msg.attachment.url || !msg.attachment.filename || !msg.attachment.size || !msg.attachment.mime_type)) {
-        console.warn('Некорректная структура attachment:', msg.attachment);
+    while (hasMoreMessages) {
+      const response = await authService.makeRequest<{
+        messages: Message[];
+        total_pages?: number; // total_pages может отсутствовать
+        current_page?: number;
+      }>(`/conversations/${conversationId}/messages?page=${currentPage}&items=${items}`, 'GET');
+
+      console.log(`Полный ответ сервера (страница ${currentPage}):`, JSON.stringify(response, null, 2));
+      
+      // Проверяем сообщения
+      if (!response.messages || response.messages.length === 0) {
+        hasMoreMessages = false; // Если сообщений нет, прерываем цикл
+        break;
       }
-    });
-    return response;
+
+      response.messages.forEach((msg) => {
+        if (msg.attachment && (!msg.attachment.url || !msg.attachment.filename || !msg.attachment.size || !msg.attachment.mime_type)) {
+          console.warn('Некорректная структура attachment:', msg.attachment);
+        }
+      });
+
+      allMessages = [...allMessages, ...response.messages];
+
+      // Если сервер возвращает total_pages, используем его
+      if (response.total_pages && response.current_page) {
+        if (currentPage >= response.total_pages) {
+          hasMoreMessages = false;
+        }
+      }
+
+      currentPage += 1;
+    }
+
+    console.log(`Всего загружено сообщений: ${allMessages.length}`);
+    return allMessages;
   } catch (error: any) {
     console.error('Ошибка при загрузке сообщений:', error.message, error.response?.data);
     throw new Error(error.response?.data?.message || 'Не удалось загрузить сообщения');

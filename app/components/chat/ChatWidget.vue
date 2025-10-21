@@ -84,8 +84,8 @@ async function openChat(dialog: any) {
 
   if (dialog.id) {
     try {
-      const response = await fetchMessages(dialog.id);
-      chats.value[dialog.id] = await Promise.all(response.messages.map(async (msg) => {
+      const messages = await fetchMessages(dialog.id); // Теперь возвращается Message[]
+      chats.value[dialog.id] = await Promise.all(messages.map(async (msg: Message) => {
         const attachmentData = msg.attachment && (msg.attachment.id || msg.attachment.url)
           ? {
               type: (msg.attachment.mime_type || 'application/octet-stream').startsWith('image/') ? 'image' :
