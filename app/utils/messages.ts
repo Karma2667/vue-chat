@@ -10,7 +10,7 @@ export interface Message {
   conversation_id: number;
   attachment?: Attachment;
   user?: { username: string };
-  reply_to?: number;
+  reply_to: number | { id: number; content: string; user: { username: string } } | null;
 }
 
 export interface Attachment {

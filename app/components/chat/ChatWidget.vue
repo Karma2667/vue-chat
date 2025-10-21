@@ -1,3 +1,4 @@
+
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import ChatToggle from './ChatToggle.vue';
@@ -7,24 +8,36 @@ import UserSearch from './UserSearch.vue';
 import AttachmentPreview from './AttachmentPreview.vue';
 import { fetchConversations, type Conversation } from '../../utils/conversations';
 import { createPrivateChat } from '../../utils/createPrivateChat';
-import { sendMessage, fetchMessages, getAttachmentUrl, type Attachment } from '../../utils/messages';
+import { sendMessage, fetchMessages, getAttachmentUrl, type Attachment, type Message } from '../../utils/messages';
 import { authService } from '../../utils/auth';
 
-const currentUserId = ref<number | null>(null);
-const isOpen = ref(false);
-const currentScreen = ref<'dialogs' | 'chat'>('dialogs');
-const activeChat = ref<any>(null);
-const inited = ref(false);
-const showSearch = ref(false);
-const previewAttachment = ref<{ type: 'image' | 'video' | 'file'; url: string; name?: string; size?: string } | null>(null);
-
-const dialogs = ref<Array<{
+interface Dialog {
   id: number;
   from: string;
   type?: string;
   lastMessage?: { content: string; created_at: string; username: string };
-}>>([]);
-const chats = ref<Record<number, any[]>>({});
+}
+
+interface ChatMessage {
+  id: number;
+  text: string;
+  time: string;
+  author: string;
+  self: boolean;
+  reply: { id: number; text: string; author: string } | null;
+  attachments: Array<{ type: 'image' | 'video' | 'file'; url: string; name?: string; size?: string }>;
+}
+
+const currentUserId = ref<number | null>(null);
+const isOpen = ref(false);
+const currentScreen = ref<'dialogs' | 'chat'>('dialogs');
+const activeChat = ref<Dialog | null>(null);
+const inited = ref(false);
+const showSearch = ref(false);
+const previewAttachment = ref<{ type: 'image' | 'video' | 'file'; url: string; name?: string; size?: string } | null>(null);
+
+const dialogs = ref<Dialog[]>([]);
+const chats = ref<Record<number, ChatMessage[]>>({});
 
 async function getAuthenticatedUrl(attachment: { id?: string; url?: string; mime_type?: string }): Promise<string> {
   if (!attachment.id && !attachment.url) {
@@ -39,7 +52,7 @@ async function getAuthenticatedUrl(attachment: { id?: string; url?: string; mime
       return blobUrl;
     } else if (attachment.url) {
       console.log(`Using direct URL as fallback: ${attachment.url}`);
-      return attachment.url; // Временное решение, пока сервер не возвращает id
+      return attachment.url;
     }
     return '';
   } catch (error: any) {
@@ -77,22 +90,23 @@ async function loadConversations() {
   }
 }
 
-async function openChat(dialog: any) {
+async function openChat(dialog: Dialog) {
   activeChat.value = dialog;
   currentScreen.value = 'chat';
   console.log('Chat opened with dialog:', dialog);
 
   if (dialog.id) {
     try {
-      const messages = await fetchMessages(dialog.id); // Теперь возвращается Message[]
-      chats.value[dialog.id] = await Promise.all(messages.map(async (msg: Message) => {
+      const messages = await fetchMessages(dialog.id);
+      // Шаг 1: Создаём временный массив сообщений без заполнения reply
+      const tempMessages = await Promise.all(messages.map(async (msg: Message) => {
         const attachmentData = msg.attachment && (msg.attachment.id || msg.attachment.url)
           ? {
               type: (msg.attachment.mime_type || 'application/octet-stream').startsWith('image/') ? 'image' :
-                    (msg.attachment.mime_type || 'application/octet-stream').startsWith('video/') ? 'video' : 'file',
+                    (msg.attachment.mime_type || 'application/octet-stream').startsWith('video/') ? 'video' : 'file' as 'image' | 'video' | 'file',
               url: await getAuthenticatedUrl(msg.attachment),
-              name: msg.attachment.filename || 'unknown',
-              size: msg.attachment.size != null ? `${(Number(msg.attachment.size) / 1024).toFixed(2)} KB` : 'unknown',
+              name: msg.attachment.filename,
+              size: msg.attachment.size != null ? `${(Number(msg.attachment.size) / 1024).toFixed(2)} KB` : undefined,
             }
           : null;
         console.log('Формирование вложения:', attachmentData);
@@ -104,16 +118,32 @@ async function openChat(dialog: any) {
             : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           author: msg.user?.username || 'Unknown',
           self: currentUserId.value !== null && msg.user_id === currentUserId.value,
-          reply: msg.reply_to
-            ? {
-                id: msg.reply_to,
-                text: chats.value[dialog.id]?.find((m) => m.id === msg.reply_to)?.text || 'Сообщение не найдено',
-                author: chats.value[dialog.id]?.find((m) => m.id === msg.reply_to)?.author || 'Unknown',
-              }
-            : null,
+          reply: null, // Пока оставляем reply пустым
+          reply_to: typeof msg.reply_to === 'object' && msg.reply_to ? msg.reply_to.id : msg.reply_to, // Извлекаем ID
           attachments: attachmentData ? [attachmentData] : [],
         };
       }));
+
+      // Шаг 2: Заполняем поле reply, используя tempMessages
+      chats.value[dialog.id] = tempMessages.map((msg) => {
+        const result: ChatMessage = {
+          id: msg.id,
+          text: msg.text,
+          time: msg.time,
+          author: msg.author,
+          self: msg.self,
+          reply: msg.reply_to
+            ? {
+                id: msg.reply_to,
+                text: tempMessages.find((m) => m.id === msg.reply_to)?.text || 'Сообщение не найдено',
+                author: tempMessages.find((m) => m.id === msg.reply_to)?.author || 'Unknown',
+              }
+            : null,
+          attachments: msg.attachments,
+        };
+        return result;
+      });
+
       console.log('Сообщения для чата загружены:', chats.value[dialog.id]);
     } catch (error: any) {
       console.error('Ошибка при загрузке сообщений:', error.message);
@@ -199,7 +229,7 @@ async function uploadAttachment(file: File): Promise<Attachment> {
   try {
     console.log('Uploading file to /api/v1/attachments/upload');
     const response = await authService.makeRequest<Attachment>(
-      '/attachments/upload', // Исправлен URL: убрано дублирование /api/v1
+      '/attachments/upload',
       'POST',
       formData,
       { headers: { 'Content-Type': 'multipart/form-data' } }
@@ -245,7 +275,7 @@ async function handleSendMessage(
     const user = authService.getUser();
     const username = user?.username || 'Вы';
 
-    const newMessage = {
+    const newMessage: ChatMessage = {
       id: response.id,
       text: response.content || '',
       time: response.created_at
@@ -257,7 +287,7 @@ async function handleSendMessage(
         ? {
             id: replyToMessageId,
             text: chats.value[conversationId]?.find((m) => m.id === replyToMessageId)?.text || 'Сообщение не найдено',
-            author: chats.value[conversationId]?.find((m) => m.id === response.reply_to)?.author || 'Unknown',
+            author: chats.value[conversationId]?.find((m) => m.id === replyToMessageId)?.author || 'Unknown',
           }
         : null,
       attachments: response.attachment && (response.attachment.id || response.attachment.url)
@@ -265,8 +295,8 @@ async function handleSendMessage(
             type: (response.attachment.mime_type || 'application/octet-stream').startsWith('image/') ? 'image' :
                   (response.attachment.mime_type || 'application/octet-stream').startsWith('video/') ? 'video' : 'file',
             url: await getAuthenticatedUrl(response.attachment),
-            name: response.attachment.filename || 'unknown',
-            size: response.attachment.size != null ? `${(Number(response.attachment.size) / 1024).toFixed(2)} KB` : 'unknown',
+            name: response.attachment.filename,
+            size: response.attachment.size != null ? `${(Number(response.attachment.size) / 1024).toFixed(2)} KB` : undefined,
           }]
         : [],
     };
