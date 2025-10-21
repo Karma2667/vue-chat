@@ -1,4 +1,4 @@
-<!-- ChatWindow.vue -->
+<!-- components/ChatWindow.vue -->
 <script setup lang="ts">
 import { defineProps, defineEmits, ref, computed, nextTick } from 'vue';
 import MessageItem from './MessageItem.vue';
@@ -11,7 +11,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'search'): void;
-  (e: 'send-message', conversationId: number, content: string | null, replyToMessageId?: number): void;
+  (e: 'send-message', conversationId: number, content: string | null, replyToMessageId?: number, attachment?: File): void;
 }>();
 
 const messagesContainer = ref<HTMLDivElement | null>(null);
@@ -22,32 +22,32 @@ const messages = computed(() => {
   return props.chats[props.activeChat.id] || [];
 });
 
-function setReply(id: number) {
-  console.log('Setting reply to ID:', id);
-  replyingTo.value = id;
-}
+const replyingMessage = computed(() => {
+  if (!replyingTo.value) return null;
+  return messages.value.find((m) => m.id === replyingTo.value) || null;
+});
 
-function handleSearch() {
-  emit('search');
-}
-
-function sendMessage(text: string, attachments?: File[]) {
+async function sendMessage(text: string, attachments?: File[]) {
   if (!props.activeChat || (!text.trim() && (!attachments || attachments.length === 0))) {
-    console.log('Пустое сообщение или только вложения, игнорируем');
+    console.log('Пустое сообщение или нет вложений, игнорируем');
     return;
   }
 
-  if (attachments && attachments.length > 0) {
-    console.log('Вложения пока не поддерживаются, игнорируем:', attachments);
-    return;
+  let attachment: File | undefined = undefined;
+  if (attachments && attachments.length > 0 && attachments[0]) {
+    attachment = attachments[0];
   }
 
   const content = text.trim() || null;
   const conversationId = props.activeChat.id;
   const replyToMessageId = replyingTo.value;
 
-  emit('send-message', conversationId, content, replyToMessageId);
-  console.log('Эмит send-message:', { conversationId, content, replyToMessageId });
+  try {
+    emit('send-message', conversationId, content, replyToMessageId, attachment);
+  } catch (error: any) {
+    console.error('Ошибка при отправке сообщения:', error.message);
+    alert(`Ошибка: ${error.message}`);
+  }
 
   replyingTo.value = undefined;
   nextTick(() => {
@@ -56,6 +56,15 @@ function sendMessage(text: string, attachments?: File[]) {
       behavior: 'smooth',
     });
   });
+}
+
+function setReply(id: number) {
+  console.log('Setting reply to ID:', id);
+  replyingTo.value = id;
+}
+
+function handleSearch() {
+  emit('search');
 }
 </script>
 
@@ -72,15 +81,15 @@ function sendMessage(text: string, attachments?: File[]) {
         :author="msg.author"
         :attachments="msg.attachments"
         :reply="msg.reply"
-        @reply="setReply(msg.id)"
+        @reply="setReply"
         @search="handleSearch"
       />
     </div>
 
     <MessageInput
       @send="sendMessage"
-      :replying-to="replyingTo ? messages.find(m => m.id === replyingTo)?.text : ''"
-      :replying-author="replyingTo ? messages.find(m => m.id === replyingTo)?.author : ''"
+      :replying-to="replyingMessage ? replyingMessage.text : ''"
+      :replying-author="replyingMessage ? replyingMessage.author : ''"
       @cancel-reply="replyingTo = undefined"
       @voice="() => console.log('Voice не реализовано')"
       @video="() => console.log('Video не реализовано')"

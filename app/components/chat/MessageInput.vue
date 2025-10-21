@@ -1,87 +1,94 @@
+<!-- components/MessageInput.vue -->
 <script setup lang="ts">
-import { ref, nextTick, defineProps } from 'vue'
-import EmojiPicker from './EmojiPicker.vue'
-import AttachmentMessage from './AttachmentMessage.vue'
+import { defineProps, defineEmits, ref, nextTick } from 'vue';
+import EmojiPicker from './EmojiPicker.vue';
+import AttachmentMessage from './AttachmentMessage.vue';
+import ReplyMessage from './ReplyMessage.vue';
 
 const props = defineProps<{
-  replyingTo?: string
-  replyingAuthor?: string
-}>()
+  replyingTo?: string;
+  replyingAuthor?: string;
+}>();
 
 const emit = defineEmits<{
-  (e: 'send', message: string, attachments?: File[]): void
-  (e: 'voice'): void
-  (e: 'video'): void
-  (e: 'cancel-reply'): void
-}>()
+  (e: 'send', message: string, attachments?: File[]): void;
+  (e: 'voice'): void;
+  (e: 'video'): void;
+  (e: 'cancel-reply'): void;
+}>();
 
-const message = ref('')
-const showEmojiPicker = ref(false)
-const attachments = ref<{ type: 'image' | 'video' | 'file', url: string, name: string, size: string }[]>([])
-const files = ref<File[]>([])
-const inputRef = ref<HTMLInputElement | null>(null)
-const fileInput = ref<HTMLInputElement | null>(null)
+const message = ref('');
+const showEmojiPicker = ref(false);
+const attachments = ref<
+  { type: 'image' | 'video' | 'file'; url: string; name: string; size: string }[]
+>([]);
+const files = ref<File[]>([]);
+const inputRef = ref<HTMLInputElement | null>(null);
+const fileInput = ref<HTMLInputElement | null>(null);
 
 function sendMessage() {
-  const text = message.value.trim()
-  if (!text && files.value.length === 0) return
+  const text = message.value.trim();
+  if (!text && files.value.length === 0) return;
 
-  emit('send', text, files.value)
+  emit('send', text, files.value);
 
-  message.value = ''
-  attachments.value.forEach(a => URL.revokeObjectURL(a.url))
-  attachments.value = []
-  files.value = []
+  message.value = '';
+  attachments.value.forEach((a) => URL.revokeObjectURL(a.url));
+  attachments.value = [];
+  files.value = [];
 }
 
 function toggleEmojiPicker() {
-  showEmojiPicker.value = !showEmojiPicker.value
+  showEmojiPicker.value = !showEmojiPicker.value;
 }
 
 function insertEmoji(emoji: string) {
-  const input = inputRef.value
-  if (!input) return
-  const start = input.selectionStart || 0
-  const end = input.selectionEnd || 0
-  message.value = message.value.slice(0, start) + emoji + message.value.slice(end)
+  const input = inputRef.value;
+  if (!input) return;
+  const start = input.selectionStart || 0;
+  const end = input.selectionEnd || 0;
+  message.value = message.value.slice(0, start) + emoji + message.value.slice(end);
   nextTick(() => {
-    input.focus()
-    input.setSelectionRange(start + emoji.length, start + emoji.length)
-  })
+    input.focus();
+    input.setSelectionRange(start + emoji.length, start + emoji.length);
+  });
 }
 
 function openFileDialog() {
-  fileInput.value?.click()
+  fileInput.value?.click();
 }
 
 function handleFiles(event: Event) {
-  const fileList = (event.target as HTMLInputElement).files
-  if (!fileList) return
+  const fileList = (event.target as HTMLInputElement).files;
+  if (!fileList) return;
 
-  Array.from(fileList).forEach(file => {
-    const url = URL.createObjectURL(file)
-    let type: 'image' | 'video' | 'file' = 'file'
-
-    if (file.type.startsWith('image/')) type = 'image'
-    else if (file.type.startsWith('video/')) type = 'video'
+  Array.from(fileList).forEach((file) => {
+    const url = URL.createObjectURL(file);
+    let type: 'image' | 'video' | 'file' = 'file';
+    if (file.type.startsWith('image/')) type = 'image';
+    else if (file.type.startsWith('video/')) type = 'video';
 
     attachments.value.push({
       type,
       url,
       name: file.name,
-      size: `${(file.size / 1024).toFixed(1)} KB`
-    })
-    files.value.push(file)
-  })
+      size: `${(file.size / 1024).toFixed(1)} KB`,
+    });
+    files.value.push(file);
+  });
 }
 
 function removeAttachment(index: number) {
-  const item = attachments.value[index]
-  if (!item) return
+  const item = attachments.value[index];
+  if (!item) return;
 
-  URL.revokeObjectURL(item.url)
-  attachments.value.splice(index, 1)
-  files.value.splice(index, 1)
+  URL.revokeObjectURL(item.url);
+  attachments.value.splice(index, 1);
+  files.value.splice(index, 1);
+}
+
+function cancelReply() {
+  emit('cancel-reply');
 }
 </script>
 
@@ -89,8 +96,10 @@ function removeAttachment(index: number) {
   <div class="message-input">
     <!-- Показываем, на что отвечаем -->
     <div v-if="props.replyingTo" class="replying-to">
-      <span>Replying to {{ props.replyingAuthor || 'Unknown' }}: {{ props.replyingTo }}</span>
-      <button @click="$emit('cancel-reply')">Cancel</button>
+      <ReplyMessage :author="props.replyingAuthor" :text="props.replyingTo" />
+      <button class="cancel-btn" @click="cancelReply">
+        <i class="fas fa-times"></i>
+      </button>
     </div>
 
     <!-- Кнопка для файлов -->
@@ -164,11 +173,12 @@ function removeAttachment(index: number) {
   width: 100%;
 }
 
-.replying-to button {
+.cancel-btn {
   background: none;
   border: none;
-  color: #0078ff;
+  color: #ff4444;
   cursor: pointer;
+  font-size: 0.9rem;
 }
 
 .input {
@@ -209,7 +219,6 @@ function removeAttachment(index: number) {
   color: #0078ff;
 }
 
-/* Вложения */
 .attachments-preview {
   display: flex;
   gap: 8px;
@@ -236,6 +245,7 @@ function removeAttachment(index: number) {
   font-size: 0.65rem;
   cursor: pointer;
 }
+
 .remove-btn:hover {
   background: rgba(255, 0, 0, 0.6);
 }
@@ -244,6 +254,7 @@ function removeAttachment(index: number) {
 .fade-leave-active {
   transition: opacity 0.15s ease;
 }
+
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;

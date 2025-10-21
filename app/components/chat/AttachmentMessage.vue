@@ -1,24 +1,51 @@
 <script setup lang="ts">
-import { defineProps } from 'vue'
+import { defineProps, defineEmits } from 'vue';
+import { authService } from '../../utils/auth';
 
 const props = defineProps<{
   attachment: {
-    type: 'image' | 'video' | 'file'
-    url: string
-    name?: string
-    size?: string
-  }
-}>()
+    type: 'image' | 'video' | 'file';
+    url: string;
+    name?: string;
+    size?: string;
+  };
+}>();
 
-function openFile() {
-  window.open(props.attachment.url, '_blank')
+const emit = defineEmits<{
+  (e: 'preview', attachment: { type: 'image' | 'video' | 'file'; url: string; name?: string; size?: string }): void;
+}>();
+
+async function handleClick() {
+  if (props.attachment.type === 'image' || props.attachment.type === 'video') {
+    emit('preview', props.attachment);
+  } else {
+    try {
+      const response = await authService.makeRequest<Blob>(
+        props.attachment.url,
+        'GET',
+        {},
+        { responseType: 'blob' }
+      );
+      const url = URL.createObjectURL(response);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = props.attachment.name || 'file';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error: any) {
+      console.error('Ошибка при скачивании файла:', error.message);
+      alert('Не удалось скачать файл: ' + error.message);
+    }
+  }
 }
 </script>
 
 <template>
-  <div class="attachment-message" @click="openFile">
+  <div class="attachment-message" @click="handleClick">
     <template v-if="attachment.type === 'image'">
-      <img :src="attachment.url" :alt="attachment.name" class="attachment-image" />
+      <img :src="attachment.url" :alt="attachment.name || 'Image'" class="attachment-image" />
     </template>
 
     <template v-else-if="attachment.type === 'video'">

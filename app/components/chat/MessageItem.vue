@@ -1,37 +1,52 @@
 <script setup lang="ts">
-import { defineProps, ref } from 'vue'
-import MessageText from './MessageText.vue'
-import AttachmentMessage from './AttachmentMessage.vue'
+import { defineProps, defineEmits, ref } from 'vue';
+import MessageText from './MessageText.vue';
+import AttachmentMessage from './AttachmentMessage.vue';
 
 const props = defineProps<{
-  id: number
-  text: string
-  time: string
-  author?: string
-  self?: boolean
+  id: number;
+  text: string;
+  time: string;
+  author?: string;
+  self?: boolean;
   attachments?: {
-    type: 'image' | 'video' | 'file'
-    url: string
-    name?: string
-    size?: string
-  }[]
-  reply?: { author?: string; text: string } | null
-}>()
+    type: 'image' | 'video' | 'file';
+    url: string;
+    name?: string;
+    size?: string;
+  }[];
+  reply?: { author?: string; text: string } | null;
+}>();
 
-const showReactions = ref(false)
-const reactions = ref<string[]>([])
+const emit = defineEmits<{
+  (e: 'reply', id: number): void;
+  (e: 'search'): void;
+  (e: 'preview', attachment: { type: 'image' | 'video' | 'file'; url: string; name?: string; size?: string }): void;
+}>();
+
+const reactions = ref<string[]>([]);
 
 function onReactionSelected(emoji: string) {
-  const index = reactions.value.indexOf(emoji)
+  const index = reactions.value.indexOf(emoji);
   if (index !== -1) {
-    // Удаляем реакцию
-    reactions.value.splice(index, 1)
+    reactions.value.splice(index, 1);
   } else {
-    // Ограничиваем до одной реакции
-    reactions.value = [emoji]
+    reactions.value = [emoji];
   }
-  showReactions.value = reactions.value.length > 0
-  console.log('Reactions:', reactions.value) // Для отладки
+  console.log('Reactions:', reactions.value);
+}
+
+function handleReply() {
+  console.log('Reply triggered for message ID:', props.id);
+  emit('reply', props.id);
+}
+
+function handleSearch() {
+  emit('search');
+}
+
+function handlePreview(attachment: { type: 'image' | 'video' | 'file'; url: string; name?: string; size?: string }) {
+  emit('preview', attachment);
 }
 </script>
 
@@ -46,6 +61,8 @@ function onReactionSelected(emoji: string) {
       :reactions="reactions"
       :reply="props.reply"
       @reaction-selected="onReactionSelected"
+      @reply="handleReply"
+      @search="handleSearch"
     />
 
     <!-- Вложения -->
@@ -54,6 +71,7 @@ function onReactionSelected(emoji: string) {
         v-for="(a, i) in props.attachments"
         :key="a.url || i"
         :attachment="a"
+        @preview="handlePreview"
       />
     </div>
   </div>
@@ -78,6 +96,8 @@ function onReactionSelected(emoji: string) {
   color: #fff;
   align-self: flex-end;
 }
+
+
 
 .attachments {
   display: flex;

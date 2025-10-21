@@ -18,6 +18,12 @@ const props = defineProps<{
     author: string;
     self: boolean;
     reply: any;
+    attachments?: Array<{
+      type: 'image' | 'video' | 'file';
+      url: string;
+      name?: string;
+      size?: string;
+    }>;
   }>>;
 }>();
 
@@ -25,7 +31,7 @@ const emit = defineEmits<{
   (e: 'open-chat', dialog: { id: number; from: string; type?: string }): void;
   (e: 'go-back'): void;
   (e: 'search'): void;
-  (e: 'send-message', conversationId: number, content: string | null, replyToMessageId?: number): void;
+  (e: 'send-message', conversationId: number, content: string | null, replyToMessageId?: number, attachment?: File): void;
 }>();
 </script>
 
@@ -62,7 +68,7 @@ const emit = defineEmits<{
           :active-chat="props.activeChat"
           :chats="props.chats"
           @search="emit('search')"
-          @send-message="(conversationId, content, replyToMessageId) => emit('send-message', conversationId, content, replyToMessageId)"
+          @send-message="(conversationId, content, replyToMessageId, attachment) => emit('send-message', conversationId, content, replyToMessageId, attachment)"
         />
       </div>
     </transition>
