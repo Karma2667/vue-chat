@@ -1,131 +1,274 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 
 const props = defineProps<{
   title: string
-  isChat?: boolean
+  isSearchMode?: boolean  // ✅ true = инпут поиска
 }>()
 
 const emit = defineEmits<{
-  (e: 'toggle-menu'): void
-  (e: 'edit'): void
   (e: 'go-back'): void
+  (e: 'search'): void
+  (e: 'search-query', query: string): void
   (e: 'profile'): void
   (e: 'block'): void
   (e: 'report'): void
 }>()
 
 const isMenuOpen = ref(false)
+const searchQuery = ref('')
+
+// ✅ При активации поиска
+watch(() => props.isSearchMode, (isSearch) => {
+  if (isSearch) {
+    isMenuOpen.value = false
+    searchQuery.value = ''
+  }
+})
+
 function toggleMenu() {
-  isMenuOpen.value = !isMenuOpen.value
+  if (!props.isSearchMode) {
+    isMenuOpen.value = !isMenuOpen.value
+  }
+}
+
+function openSearch() {
+  emit('search')
+  isMenuOpen.value = false
+}
+
+function handleSearchInput(event: Event) {
+  const target = event.target as HTMLInputElement
+  emit('search-query', target.value)
+}
+
+function clearSearch() {
+  searchQuery.value = ''
+  emit('search-query', '')
 }
 </script>
 
 <template>
   <div class="chat-header">
-    <!-- Левая кнопка -->
-    <button class="header-left" @click="isChat ? emit('go-back') : emit('toggle-menu')">
-      {{ isChat ? '←' : '☰' }}
-    </button>
-
-    <!-- Центр -->
-    <div class="header-center">{{ props.title }}</div>
-
-    <!-- Правая кнопка -->
-    <div class="header-right" v-if="isChat">
-      <button @click="toggleMenu">⋮</button>
-      <transition name="fade">
-        <div class="context-menu" v-show="isMenuOpen">
-          <button @click="emit('profile')"><i class="fas fa-user"></i> Профиль</button>
-          <button @click="emit('block')"><i class="fas fa-ban"></i> Заблокировать</button>
-          <button @click="emit('report')"><i class="fas fa-flag"></i> Пожаловаться</button>
-        </div>
-      </transition>
+    <!-- ✅ РЕЖИМ ПОИСКА: инпут -->
+    <div v-if="props.isSearchMode" class="search-mode">
+      <button class="back-button" @click="emit('go-back')">
+        <i class="fas fa-arrow-left"></i>
+      </button>
+      <input
+        v-model="searchQuery"
+        @input="handleSearchInput"
+        placeholder="Поиск сообщений..."
+        class="search-input"
+        autocomplete="off"
+      />
+      <button v-if="searchQuery" @click="clearSearch" class="clear-button">
+        ×
+      </button>
     </div>
 
-    <!-- Меню-бекдроп -->
-    <div class="menu-backdrop" v-if="isMenuOpen" @click="isMenuOpen=false"></div>
+    <!-- ✅ ОБЫЧНЫЙ ХЕДЕР -->
+    <div v-else class="normal-mode">
+      <button class="back-button" @click="emit('go-back')">
+        ←
+      </button>
+
+      <div class="header-center">{{ props.title }}</div>
+
+      <div class="header-right">
+        <button @click.stop="toggleMenu" class="menu-button" :class="{ disabled: props.isSearchMode }">
+          ⋮
+        </button>
+
+        <!-- МЕНЮ -->
+        <transition name="menu">
+          <div v-if="isMenuOpen && !props.isSearchMode" class="context-menu" @click.stop>
+            <button @click="openSearch">
+              <i class="fas fa-search"></i> Поиск сообщений
+            </button>
+            <button @click="emit('profile')">
+              <i class="fas fa-user"></i> Профиль
+            </button>
+            <button @click="emit('block')">
+              <i class="fas fa-ban"></i> Заблокировать
+            </button>
+            <button @click="emit('report')">
+              <i class="fas fa-flag"></i> Пожаловаться
+            </button>
+          </div>
+        </transition>
+      </div>
+    </div>
+
+    <!-- Backdrop -->
+    <div v-if="isMenuOpen" class="menu-backdrop" @click="isMenuOpen = false"></div>
   </div>
 </template>
 
 <style scoped>
 .chat-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: var(--header-height, 3.55rem);
-  padding: 0 0.5rem;
-  background: var(--bg-first, #fff);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.04);
-  position: relative;
-  z-index: 1001;
+  height: 3.55rem;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  z-index: 10001;
 }
 
-.header-left {
+/* ✅ РЕЖИМ ПОИСКА */
+.search-mode {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.75rem;
+}
+
+.back-button {
   background: none;
   border: none;
   font-size: 1.2rem;
   cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 6px;
+  color: #0078ff;
+  transition: background 0.15s ease;
+  flex-shrink: 0;
+}
+
+.back-button:hover {
+  background: rgba(0, 120, 255, 0.1);
+}
+
+.search-input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  background: #f8fafc;
+  transition: all 0.15s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #0078ff;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(0, 120, 255, 0.1);
+}
+
+.clear-button {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: #64748b;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.clear-button:hover {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+/* ✅ ОБЫЧНЫЙ РЕЖИМ */
+.normal-mode {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.75rem;
 }
 
 .header-center {
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 1rem;
+  flex: 1;
   text-align: center;
-  flex-grow: 1;
+  padding: 0 1rem;
 }
 
 .header-right {
   position: relative;
 }
 
-.header-right button {
+.menu-button {
   background: none;
   border: none;
-  font-size: 1.2rem;
+  font-size: 1.5rem;
   cursor: pointer;
-  font-weight: bold;
-  margin-right: 5px; /* Сдвигаем на 5px */
+  padding: 0.5rem;
+  border-radius: 6px;
+  transition: all 0.15s ease;
 }
 
-/* Контекстное меню */
+.menu-button:hover:not(.disabled) {
+  background: #f1f5f9;
+  transform: scale(1.1);
+}
+
+.menu-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* МЕНЮ */
 .context-menu {
-  position: absolute;
-  top: 2.5rem;
-  right: 0;
-  background: var(--bg-first, #fff);
-  border-radius: var(--border-radius, 6px);
-  box-shadow: var(--shadow-light, 0 3px 8px rgba(0,0,0,0.2));
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-width: 160px;
+  position: fixed;
+  top: 4rem;
+  right: 1.5rem;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  border: 1px solid #e2e8f0;
+  min-width: 200px;
+  z-index: 10002;
 }
 
 .context-menu button {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 1rem 1.25rem;
   background: none;
   border: none;
   text-align: left;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
+  transition: background 0.15s ease;
 }
 
 .context-menu button:hover {
-  background: var(--bg-accent, #e6f0ff);
+  background: #f0f7ff;
 }
 
 .menu-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 10001;
+  background: rgba(0, 0, 0, 0.1);
 }
 
-/* Анимация */
-.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
-.fade-enter-to, .fade-leave-from { opacity: 1; }
+/* АНИМАЦИЯ */
+.menu-enter-active,
+.menu-leave-active {
+  transition: all 0.25s ease;
+  transform-origin: top right;
+}
+
+.menu-enter-from,
+.menu-leave-to {
+  opacity: 0;
+  transform: translateY(-12px) scale(0.95);
+}
+
+.menu-enter-to,
+.menu-leave-from {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
 </style>

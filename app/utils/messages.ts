@@ -136,3 +136,34 @@ export async function getAttachmentUrl(attachmentId: string): Promise<string> {
     throw new Error(error.response?.data?.message || 'Не удалось загрузить изображение');
   }
 }
+// ✅ ДОБАВЬ в messages.ts
+export interface MessagesSearchResponse {
+  messages: Message[];
+  meta: {
+    pagination: {
+      current_page: number;
+      total_pages: number;
+      total_count: number;
+      per_page: number;
+    };
+  };
+}
+
+export async function searchMessages(
+  conversationId: number, 
+  query: string, 
+  page: number = 1, 
+  items: number = 20
+): Promise<MessagesSearchResponse> {
+  try {
+    const response = await authService.makeRequest<MessagesSearchResponse>(
+      `/conversations/${conversationId}/messages?page=${page}&items=${items}&q=${encodeURIComponent(query)}`,
+      'GET'
+    );
+    console.log('Результат поиска:', response);
+    return response;
+  } catch (error: any) {
+    console.error('Ошибка поиска сообщений:', error.message, error.response?.data);
+    throw new Error(error.response?.data?.message || 'Не удалось найти сообщения');
+  }
+}

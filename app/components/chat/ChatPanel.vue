@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineProps, defineEmits } from 'vue';
+import { defineProps, defineEmits, type PropType } from 'vue';
 import DialogList from './DialogList.vue';
 import ChatWindow from './ChatWindow.vue';
 import ChatListHeader from './ChatListHeader.vue';
@@ -35,14 +35,18 @@ const props = defineProps<{
   dialogs: Dialog[];
   activeChat: Dialog | null;
   chats: Record<number, ChatMessage[]>;
+  searchQuery: string;
+  searchResults: ChatMessage[];
+  isSearching: boolean;
+  isSearchMode: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'open-chat', dialog: Dialog): void;
   (e: 'go-back'): void;
-  (e: 'search'): void;
+  (e: 'search'): void;                    // ✅ Активация поиска
+  (e: 'search-query', query: string): void; // ✅ Запрос поиска
   (e: 'send-message', conversationId: number, content: string | null, replyToMessageId?: number, attachment?: File): void;
-  (e: 'scroll-to-reply', id: number): void;
   (e: 'preview', attachment: Attachment): void;
   (e: 'delete-message', messageId: number): void;
 }>();
@@ -50,27 +54,26 @@ const emit = defineEmits<{
 
 <template>
   <div class="chat-panel" :class="{ 'is-open': props.isOpen }">
+    <!-- ✅ ХЕДЕР: dialogs / chat / search -->
     <transition name="screen-fade" mode="out-in">
-      <div :key="props.currentScreen">
+      <div :key="`${props.currentScreen}-${props.isSearchMode}`">
         <ChatListHeader
           v-if="props.currentScreen === 'dialogs'"
-          @tab-change="key => console.log('Переключение вкладки', key)"
           @search="emit('search')"
-          @new-group-chat="console.log('Новая группа')"
-          @settings="console.log('Настройки')"
-          @selected="console.log('Выбраны чаты')"
         />
         <ChatHeader
           v-else
           :title="props.activeChat?.from || 'Чат'"
-          :is-chat="true"
+          :is-search-mode="props.isSearchMode"
           @go-back="emit('go-back')"
+          @search="emit('search')"
+          @search-query="emit('search-query', $event)"
         />
       </div>
     </transition>
 
+    <!-- ✅ КОНТЕНТ -->
     <transition name="screen-fade" mode="out-in">
-      <!-- ✅ ИСПРАВЛЕНО: :key вместо key -->
       <div :key="props.currentScreen" class="chat-content">
         <DialogList
           v-if="props.currentScreen === 'dialogs'"
@@ -81,11 +84,14 @@ const emit = defineEmits<{
           v-else
           :active-chat="props.activeChat"
           :chats="props.chats"
-          @search="emit('search')"
-          @send-message="(conversationId, content, replyToMessageId, attachment) => emit('send-message', conversationId, content, replyToMessageId, attachment)"
-          @scroll-to-reply="id => emit('scroll-to-reply', id)"
-          @preview="attachment => emit('preview', attachment)"
-          @delete-message="messageId => emit('delete-message', messageId)"
+          :search-query="props.searchQuery"
+          :search-results="props.searchResults"
+          :is-searching="props.isSearching"
+          :is-search-mode="props.isSearchMode"
+          @send-message="emit('send-message', ...$event)"
+          @preview="emit('preview', $event)"
+          @delete-message="emit('delete-message', $event)"
+          @search-query="emit('search-query', $event)"
         />
       </div>
     </transition>
@@ -94,7 +100,7 @@ const emit = defineEmits<{
 
 <style scoped>
 .chat-panel {
-  position: absolute;
+  position: fixed;
   top: 0;
   right: 0;
   height: 100vh;
@@ -106,6 +112,7 @@ const emit = defineEmits<{
   display: flex;
   flex-direction: column;
   transition: transform var(--transition-slow);
+  z-index: 10000;
 }
 
 .chat-panel.is-open {
@@ -114,7 +121,9 @@ const emit = defineEmits<{
 
 .chat-content {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .chat-panel,
@@ -122,7 +131,6 @@ const emit = defineEmits<{
 .chat-panel * {
   user-select: auto !important;
   pointer-events: auto !important;
-  z-index: 1000 !important;
 }
 
 .screen-fade-enter-active,

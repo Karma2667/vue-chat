@@ -1,44 +1,70 @@
 <template>
   <div>
-    <ChatPanel
+    <ChatWidget
       v-if="!isAuthRoute"
-      :is-open="isChatOpen"
-      current-screen="dialogs"
-      :dialogs="dialogs"
-      :active-chat="activeChat"
-      :chats="chats"
-      @on-go-back="handleGoBack"
-      @on-open-chat="handleOpenChat"
+      :is-open="chat.isOpen.value"
+      :current-screen="chat.currentScreen.value"
+      :dialogs="chat.dialogs.value"
+      :active-chat="chat.activeChat.value"
+      :chats="chat.chats.value"
+      :search-query="chat.searchQuery.value"
+      :search-results="chat.searchResults.value"
+      :is-searching="chat.isSearching.value"
+      :is-search-mode="chat.isSearchMode.value"
+      @open-chat="chat.openChat"
+      @go-back="chat.goBack"
+      @search="() => {}"
+      @send-message="chat.handleSendMessage"
+      @preview="chat.handlePreview"
+      @delete-message="chat.deleteMessage"
+      @search-query="chat.performSearch"
     />
     <slot />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { useChat } from '~/composables/useChat'
+import { onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import ChatPanel from '~/components/chat/ChatPanel.vue'
+
+const chat = useChat()
 
 const route = useRoute()
-const isAuthRoute = computed(() => ['/auth', '/test', '/reset-password'].includes(route.path))
+const isAuthRoute = computed(() => [
+  '/auth', 
+  '/test', 
+  '/reset-password',
+  '/login',
+  '/register',
+  '/forgot-password'
+].includes(route.path))
 
-// Заглушки для чата (замените на реальные данные, если есть)
-const isChatOpen = ref(true)
-const dialogs = ref<any[]>([])
-const activeChat = ref<any>(null)
-const chats = ref<Record<number, any[]>>({})
-
-function handleGoBack() {
-  console.log('Go back triggered')
-}
-
-function handleOpenChat(dialog: any) {
-  console.log('Open chat:', dialog)
-  activeChat.value = dialog
-}
+onMounted(() => {
+  chat.loadConversations()
+})
 </script>
 
 <style scoped>
+:deep(.messenger-widget) {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
+  pointer-events: none !important;
+}
+
+:deep(.messenger-widget *) {
+  pointer-events: auto !important;
+}
+
+:deep(.chat-panel) {
+  position: fixed !important;
+  top: 0 !important;
+  right: 0 !important;
+  height: 100vh !important;
+  z-index: 10000 !important;
+}
+
 input, button, textarea, [type="text"], [type="email"], [type="password"], [role="button"] {
   user-select: auto !important;
   -webkit-user-select: auto !important;
