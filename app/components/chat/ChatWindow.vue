@@ -1,4 +1,3 @@
-```vue
 <script setup lang="ts">
 import { defineProps, defineEmits, ref, computed, nextTick, watch } from 'vue';
 import MessageItem from './MessageItem.vue';
@@ -47,6 +46,28 @@ const replyingMessage = computed(() => {
   return messages.value.find((m) => m.id === replyingTo.value) || null;
 });
 
+const replyingPreview = computed(() => {
+  if (!replyingTo.value || !replyingMessage.value) return null;
+  
+  const msg = replyingMessage.value;
+  if (msg.text.trim()) {
+    return {
+      text: msg.text,
+      author: msg.author,
+      id: msg.id,
+    };
+  } else if (msg.attachments.length > 0) {
+    const firstAttachment = msg.attachments[0]!;
+    return {
+      text: `[Вложение: ${firstAttachment.name || firstAttachment.type.toUpperCase()}]`,
+      author: msg.author,
+      id: msg.id,
+    };
+  }
+  
+  return null;
+});
+
 function scrollToBottom(behavior: 'smooth' | 'auto' = 'smooth') {
   nextTick(() => {
     if (messagesContainer.value) {
@@ -78,8 +99,16 @@ watch(messages, () => {
 }, { deep: true });
 
 async function sendMessage(text: string, attachments?: File[]) {
-  if (!props.activeChat || (!text.trim() && (!attachments || attachments.length === 0))) {
-    console.log('Пустое сообщение или нет вложений, игнорируем');
+  if (!props.activeChat) {
+    console.log('Нет активного чата');
+    return;
+  }
+
+  const hasText = text.trim().length > 0;
+  const hasAttachments = attachments && attachments.length > 0;
+  
+  if (!hasText && !hasAttachments) {
+    console.log('Пустое сообщение без вложений, игнорируем');
     return;
   }
 
@@ -143,9 +172,9 @@ function handlePreview(attachment: { type: 'image' | 'video' | 'file'; url: stri
     </div>
     <MessageInput
       @send="sendMessage"
-      :replying-to="replyingMessage ? replyingMessage.text : ''"
-      :replying-author="replyingMessage ? replyingMessage.author : ''"
-      :replying-id="replyingMessage ? replyingMessage.id : undefined"
+      :replying-text="replyingPreview?.text || ''"
+      :replying-author="replyingPreview?.author || ''"
+      :replying-id="replyingPreview?.id || undefined"
       @cancel-reply="replyingTo = undefined"
       @voice="() => console.log('Voice не реализовано')"
       @video="() => console.log('Video не реализовано')"

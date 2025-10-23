@@ -275,6 +275,35 @@ async function handleSendMessage(
     const user = authService.getUser();
     const username = user?.username || 'Вы';
 
+    // ✅ ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ: TypeScript-safe
+    let replyData: { id: number; text: string; author: string } | null = null;
+    
+    if (replyToMessageId) {
+      const localMessage = chats.value[conversationId]?.find((m) => m.id === replyToMessageId);
+      if (localMessage) {
+        // ✅ TypeScript-safe доступ к attachments[0]
+        const replyText = localMessage.text.trim()
+          ? localMessage.text
+          : localMessage.attachments.length > 0
+            ? `[Вложение: ${localMessage.attachments[0]!.name || localMessage.attachments[0]!.type.toUpperCase()}]`
+            : 'Сообщение не найдено';
+            
+        replyData = {
+          id: replyToMessageId,
+          text: replyText,
+          author: localMessage.author,
+        };
+      } else {
+        // ✅ Fallback с type assertion
+        const replyUsername = (response.reply_to as any)?.username || 'Unknown';
+        replyData = {
+          id: replyToMessageId,
+          text: 'Сообщение не найдено',
+          author: replyUsername,
+        };
+      }
+    }
+
     const newMessage: ChatMessage = {
       id: response.id,
       text: response.content || '',
@@ -283,13 +312,7 @@ async function handleSendMessage(
         : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       author: response.user?.username || username,
       self: currentUserId.value !== null && response.user_id === currentUserId.value,
-      reply: replyToMessageId
-        ? {
-            id: replyToMessageId,
-            text: chats.value[conversationId]?.find((m) => m.id === replyToMessageId)?.text || 'Сообщение не найдено',
-            author: chats.value[conversationId]?.find((m) => m.id === replyToMessageId)?.author || 'Unknown',
-          }
-        : null,
+      reply: replyData,
       attachments: response.attachment && (response.attachment.id || response.attachment.url)
         ? [{
             type: (response.attachment.mime_type || 'application/octet-stream').startsWith('image/') ? 'image' :

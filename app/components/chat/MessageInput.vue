@@ -1,14 +1,13 @@
-```vue
 <script setup lang="ts">
-import { defineProps, defineEmits, ref, nextTick } from 'vue';
+import { ref, defineProps, defineEmits, nextTick } from 'vue';
 import EmojiPicker from './EmojiPicker.vue';
 import AttachmentMessage from './AttachmentMessage.vue';
 import ReplyMessage from './ReplyMessage.vue';
 
 const props = defineProps<{
-  replyingTo?: string;
+  replyingText?: string;  // ✅ ИСПРАВЛЕНО: было replyingTo
   replyingAuthor?: string;
-  replyingId?: number; // Добавляем пропс
+  replyingId?: number;
 }>();
 
 const emit = defineEmits<{
@@ -16,7 +15,7 @@ const emit = defineEmits<{
   (e: 'voice'): void;
   (e: 'video'): void;
   (e: 'cancel-reply'): void;
-  (e: 'scroll-to-reply', id: number): void; // Добавляем событие
+  (e: 'scroll-to-reply', id: number): void;
 }>();
 
 const message = ref('');
@@ -101,12 +100,12 @@ function handleScrollToReply(id: number) {
 
 <template>
   <div class="message-input">
-    <!-- Показываем, на что отвечаем -->
-    <div v-if="props.replyingTo" class="replying-to">
+    <!-- ✅ ИСПРАВЛЕНО: Показываем reply даже для вложений без текста -->
+    <div v-if="props.replyingText" class="replying-to">
       <ReplyMessage
         :id="props.replyingId!"
         :author="props.replyingAuthor"
-        :text="props.replyingTo"
+        :text="props.replyingText"
         @scroll-to-reply="handleScrollToReply"
       />
       <button class="cancel-btn" @click="cancelReply">
