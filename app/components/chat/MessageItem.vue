@@ -1,6 +1,5 @@
-```vue
 <script setup lang="ts">
-import { defineProps, defineEmits, ref } from 'vue';
+import { ref, defineProps, defineEmits } from 'vue';
 import MessageText from './MessageText.vue';
 import AttachmentMessage from './AttachmentMessage.vue';
 
@@ -16,14 +15,15 @@ const props = defineProps<{
     name?: string;
     size?: string;
   }[];
-  reply?: { id: number; author?: string; text: string } | null; // Добавляем id
+  reply?: { id: number; author?: string; text: string } | null;
 }>();
 
 const emit = defineEmits<{
   (e: 'reply', id: number): void;
   (e: 'search'): void;
   (e: 'preview', attachment: { type: 'image' | 'video' | 'file'; url: string; name?: string; size?: string }): void;
-  (e: 'scroll-to-reply', id: number): void; // Добавляем событие
+  (e: 'scroll-to-reply', id: number): void;
+  (e: 'delete', id: number): void; // ✅ НОВОЕ: событие удаления
 }>();
 
 const reactions = ref<string[]>([]);
@@ -55,6 +55,11 @@ function handleScrollToReply(id: number) {
   console.log('Scroll to reply ID:', id);
   emit('scroll-to-reply', id);
 }
+
+function handleDelete() {
+  console.log('Delete message ID:', props.id);
+  emit('delete', props.id); // ✅ Передаем ID сообщения для удаления
+}
 </script>
 
 <template>
@@ -70,6 +75,7 @@ function handleScrollToReply(id: number) {
       @reaction-selected="onReactionSelected"
       @reply="handleReply"
       @scroll-to-reply="handleScrollToReply"
+      @delete="handleDelete"
     />
 
     <!-- Вложения -->

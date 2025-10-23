@@ -1,4 +1,3 @@
-
 <script setup lang="ts">
 import { ref, defineProps, defineEmits } from 'vue';
 import MessageActions from './MessageActions.vue';
@@ -12,7 +11,7 @@ const props = defineProps({
   self: { type: Boolean },
   reactions: { type: Array as PropType<string[]>, default: () => [] },
   reply: {
-    type: Object as PropType<{ id: number; author?: string; text: string } | null>, // Добавляем id
+    type: Object as PropType<{ id: number; author?: string; text: string } | null>,
     default: null,
   },
 });
@@ -20,7 +19,8 @@ const props = defineProps({
 const emit = defineEmits<{
   (e: 'reaction-selected', emoji: string): void;
   (e: 'reply'): void;
-  (e: 'scroll-to-reply', id: number): void; // Добавляем событие
+  (e: 'scroll-to-reply', id: number): void;
+  (e: 'delete'): void;
 }>();
 
 const hover = ref(false);
@@ -34,8 +34,11 @@ function reply() {
 }
 
 function handleScrollToReply(id: number) {
-  console.log('Scroll to reply ID:', id);
   emit('scroll-to-reply', id);
+}
+
+function handleDelete() {
+  emit('delete');
 }
 </script>
 
@@ -47,8 +50,10 @@ function handleScrollToReply(id: number) {
       <div class="author-actions" v-show="hover">
         <MessageActions
           :self="props.self"
+          :existing-reactions="props.reactions"
           @reaction-selected="addReaction"
           @reply="reply"
+          @delete="handleDelete"
         />
       </div>
     </div>
@@ -72,7 +77,7 @@ function handleScrollToReply(id: number) {
     </div>
 
     <!-- Время -->
-    <span class="time">{{ props.time }}</span>
+    <span class="time" :class="{ self: props.self }">{{ props.time }}</span>
   </div>
 </template>
 
@@ -80,22 +85,20 @@ function handleScrollToReply(id: number) {
 .message-text {
   display: flex;
   flex-direction: column;
-  word-wrap: break-word;
-  user-select: text;
+  gap: 0.25rem;
 }
 
 .author-row {
-  position: relative;
   display: flex;
   align-items: center;
-  margin-bottom: 0.2rem;
+  gap: 0.5rem;
 }
 
 .author {
+  font-size: 0.75rem;
+  font-weight: 500;
   margin: 0;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #0078ff;
+  color: #666;
 }
 
 .author.self {
@@ -103,44 +106,34 @@ function handleScrollToReply(id: number) {
 }
 
 .author-actions {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  gap: 4px;
-  font-size: 0.8rem;
+  margin-left: auto;
 }
 
 .text {
   margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.3;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  line-height: 1.4;
 }
 
 .reactions-row {
   display: flex;
-  gap: 4px;
-  margin-top: 4px;
+  gap: 0.25rem;
 }
 
 .reaction {
-  font-size: 1rem;
-  padding: 0.15rem 0.4rem;
-  border-radius: 12px;
+  font-size: 0.875rem;
   background: #f0f0f0;
-}
-
-.message-text.self .reaction {
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.375rem;
 }
 
 .time {
-  display: block;
-  font-size: 0.7rem;
-  opacity: 0.6;
-  margin-top: 0.2rem;
-  text-align: right;
+  font-size: 0.6875rem;
+  color: #999;
+  align-self: flex-end;
+}
+.time.self {
+  color: #fff !important;
 }
 </style>

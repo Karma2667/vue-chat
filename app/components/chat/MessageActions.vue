@@ -1,4 +1,3 @@
-<!-- MessageActions.vue -->
 <script setup lang="ts">
 import { ref, defineProps, defineEmits } from 'vue'
 import ReactionPicker from './ReactionPicker.vue'
@@ -9,7 +8,7 @@ import {
   PhPencilSimple,
   PhFlag,
   PhPushPin,
-  PhMagnifyingGlass // Добавляем иконку поиска
+  PhTrashSimple // ✅ Добавляем иконку удаления
 } from '@phosphor-icons/vue'
 
 const props = defineProps<{
@@ -20,7 +19,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'reaction-selected', emoji: string): void
   (e: 'reply'): void
-  (e: 'search'): void // Новое событие для поиска
+  (e: 'delete'): void // ✅ НОВОЕ: событие удаления
 }>()
 
 const showReactions = ref(false)
@@ -38,8 +37,8 @@ function reply() {
   emit('reply')
 }
 
-function openSearch() {
-  emit('search') // Эмитим событие для открытия поиска
+function deleteMessage() {
+  emit('delete') // ✅ Эмитим событие удаления
 }
 </script>
 
@@ -51,14 +50,6 @@ function openSearch() {
       weight="regular"
       title="Реакции"
       @click.stop="togglePicker"
-    />
-
-    <!-- Поиск -->
-    <PhMagnifyingGlass
-      size="20"
-      weight="regular"
-      title="Поиск пользователей"
-      @click.stop="openSearch"
     />
 
     <!-- Ответ -->
@@ -76,6 +67,16 @@ function openSearch() {
       weight="regular"
       class="small-icon"
       title="Переслать"
+    />
+
+    <!-- ✅ УДАЛЕНИЕ (только для своих сообщений) -->
+    <PhTrashSimple
+      v-if="props.self"
+      size="18"
+      weight="regular"
+      class="small-icon delete-icon"
+      title="Удалить"
+      @click="deleteMessage"
     />
 
     <!-- Редактировать -->
@@ -132,6 +133,10 @@ function openSearch() {
 .actions svg:hover {
   transform: scale(1.2);
   color: #0078ff;
+}
+
+.delete-icon:hover {
+  color: #ff4444 !important; /* Красный для удаления */
 }
 
 .small-icon {

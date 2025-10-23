@@ -1,4 +1,3 @@
-```vue
 <script setup lang="ts">
 import { defineProps, defineEmits } from 'vue';
 import DialogList from './DialogList.vue';
@@ -20,7 +19,7 @@ interface ChatMessage {
   author: string;
   self: boolean;
   reply: { id: number; author?: string; text: string } | null;
-  attachments: Attachment[]; // Убираем undefined
+  attachments: Attachment[];
 }
 
 interface Dialog {
@@ -43,8 +42,9 @@ const emit = defineEmits<{
   (e: 'go-back'): void;
   (e: 'search'): void;
   (e: 'send-message', conversationId: number, content: string | null, replyToMessageId?: number, attachment?: File): void;
-  (e: 'scroll-to-reply', id: number): void; // Добавляем событие
-  (e: 'preview', attachment: Attachment): void; // Добавляем событие preview
+  (e: 'scroll-to-reply', id: number): void;
+  (e: 'preview', attachment: Attachment): void;
+  (e: 'delete-message', messageId: number): void;
 }>();
 </script>
 
@@ -70,7 +70,8 @@ const emit = defineEmits<{
     </transition>
 
     <transition name="screen-fade" mode="out-in">
-      <div key="props.currentScreen" class="chat-content">
+      <!-- ✅ ИСПРАВЛЕНО: :key вместо key -->
+      <div :key="props.currentScreen" class="chat-content">
         <DialogList
           v-if="props.currentScreen === 'dialogs'"
           :dialogs="props.dialogs"
@@ -84,6 +85,7 @@ const emit = defineEmits<{
           @send-message="(conversationId, content, replyToMessageId, attachment) => emit('send-message', conversationId, content, replyToMessageId, attachment)"
           @scroll-to-reply="id => emit('scroll-to-reply', id)"
           @preview="attachment => emit('preview', attachment)"
+          @delete-message="messageId => emit('delete-message', messageId)"
         />
       </div>
     </transition>

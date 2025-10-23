@@ -1,4 +1,3 @@
-
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import ChatToggle from './ChatToggle.vue';
@@ -98,7 +97,6 @@ async function openChat(dialog: Dialog) {
   if (dialog.id) {
     try {
       const messages = await fetchMessages(dialog.id);
-      // Шаг 1: Создаём временный массив сообщений без заполнения reply
       const tempMessages = await Promise.all(messages.map(async (msg: Message) => {
         const attachmentData = msg.attachment && (msg.attachment.id || msg.attachment.url)
           ? {
@@ -118,13 +116,12 @@ async function openChat(dialog: Dialog) {
             : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           author: msg.user?.username || 'Unknown',
           self: currentUserId.value !== null && msg.user_id === currentUserId.value,
-          reply: null, // Пока оставляем reply пустым
-          reply_to: typeof msg.reply_to === 'object' && msg.reply_to ? msg.reply_to.id : msg.reply_to, // Извлекаем ID
+          reply: null,
+          reply_to: typeof msg.reply_to === 'object' && msg.reply_to ? msg.reply_to.id : msg.reply_to,
           attachments: attachmentData ? [attachmentData] : [],
         };
       }));
 
-      // Шаг 2: Заполняем поле reply, используя tempMessages
       chats.value[dialog.id] = tempMessages.map((msg) => {
         const result: ChatMessage = {
           id: msg.id,
@@ -154,6 +151,48 @@ async function openChat(dialog: Dialog) {
   }
 }
 
+async function deleteMessage(messageId: number) {
+  const chat = activeChat.value;
+  if (!chat) {
+    console.error('Нет активного чата для удаления');
+    return;
+  }
+
+  if (!confirm('Удалить это сообщение?')) {
+    return;
+  }
+
+  try {
+    console.log(`Удаляем сообщение ${messageId} из чата ${chat.id}`);
+    
+    const response = await authService.makeRequest<{
+      success: boolean;
+      message: string;
+      id: number;
+    }>(`/conversations/${chat.id}/messages/${messageId}`, 'DELETE');
+    
+    console.log('Ответ API удаления:', response);
+    
+    if (response.success) {
+      // ✅ ПРИНУДИТЕЛЬНО ПЕРЕЗАГРУЗИМ ЧАТ - мгновенное обновление!
+      await openChat(chat);
+      console.log(`Сообщение ${messageId} удалено и чат перезагружен`);
+    } else {
+      throw new Error(response.message || 'Неизвестная ошибка удаления');
+    }
+  } catch (error: any) {
+    console.error('Ошибка удаления сообщения:', error);
+    
+    if (error.response?.status === 403) {
+      alert('Нет прав на удаление этого сообщения');
+    } else if (error.response?.status === 404) {
+      alert('Сообщение не найдено');
+    } else {
+      alert('Ошибка удаления: ' + (error.message || 'Неизвестная ошибка'));
+    }
+  }
+}
+
 onMounted(() => {
   requestAnimationFrame(() => (inited.value = true));
   loadConversations();
@@ -164,7 +203,6 @@ onMounted(() => {
   } else {
     console.error('Не удалось получить ID текущего пользователя');
   }
-  console.log('Initial isOpen:', isOpen.value);
 });
 
 function toggleWidget() {
@@ -173,14 +211,12 @@ function toggleWidget() {
     showSearch.value = false;
     previewAttachment.value = null;
   }
-  console.log('Widget toggled:', isOpen.value);
 }
 
 function goBack() {
   currentScreen.value = 'dialogs';
   showSearch.value = false;
   previewAttachment.value = null;
-  console.log('Go back to dialogs');
 }
 
 function openSearch() {
@@ -188,22 +224,18 @@ function openSearch() {
 }
 
 async function handleSelectUser(user: { id: number; username: string }) {
-  console.log('User selected for chat creation:', user);
   const existingDialog = dialogs.value.find(
     (d) => d.from === user.username && d.type === 'private_chat'
   );
 
   if (existingDialog) {
-    console.log('Existing dialog found:', existingDialog);
     openChat(existingDialog);
     showSearch.value = false;
     return;
   }
 
   try {
-    console.log(`Начало создания чата с пользователем: ${user.username} (ID: ${user.id})`);
     const conversation = await createPrivateChat(user.id);
-    console.log('Успешно создан чат:', conversation);
     const newDialog = {
       id: conversation.id,
       from: user.username,
@@ -211,15 +243,12 @@ async function handleSelectUser(user: { id: number; username: string }) {
     };
     dialogs.value.push(newDialog);
     chats.value[newDialog.id] = [];
-    console.log('New dialog added to dialogs:', newDialog);
-    console.log('Chats updated for ID:', newDialog.id);
     openChat(newDialog);
   } catch (err: any) {
     console.error('Ошибка создания чата:', err.message);
     alert('Ошибка создания чата: ' + err.message);
   } finally {
     showSearch.value = false;
-    console.log('Завершение процесса создания чата');
   }
 }
 
@@ -227,14 +256,12 @@ async function uploadAttachment(file: File): Promise<Attachment> {
   const formData = new FormData();
   formData.append('file', file);
   try {
-    console.log('Uploading file to /api/v1/attachments/upload');
     const response = await authService.makeRequest<Attachment>(
       '/attachments/upload',
       'POST',
       formData,
       { headers: { 'Content-Type': 'multipart/form-data' } }
     );
-    console.log('File uploaded successfully:', response);
     return response;
   } catch (error: any) {
     console.error('Failed to upload file:', error.message, error.response?.data);
@@ -268,20 +295,17 @@ async function handleSendMessage(
         attachment: attachmentData,
       }
     };
-    console.log('Отправка сообщения через sendMessage:', request);
     const response = await sendMessage(conversationId, request);
     console.log('Ответ от sendMessage:', response);
 
     const user = authService.getUser();
     const username = user?.username || 'Вы';
 
-    // ✅ ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ: TypeScript-safe
     let replyData: { id: number; text: string; author: string } | null = null;
     
     if (replyToMessageId) {
       const localMessage = chats.value[conversationId]?.find((m) => m.id === replyToMessageId);
       if (localMessage) {
-        // ✅ TypeScript-safe доступ к attachments[0]
         const replyText = localMessage.text.trim()
           ? localMessage.text
           : localMessage.attachments.length > 0
@@ -294,7 +318,6 @@ async function handleSendMessage(
           author: localMessage.author,
         };
       } else {
-        // ✅ Fallback с type assertion
         const replyUsername = (response.reply_to as any)?.username || 'Unknown';
         replyData = {
           id: replyToMessageId,
@@ -333,12 +356,15 @@ async function handleSendMessage(
   }
 }
 
+// ✅ НОВЫЙ обработчик удаления
+function handleDeleteMessage(messageId: number) {
+  console.log('Получено событие удаления сообщения:', messageId);
+  deleteMessage(messageId);
+}
+
 function handlePreview(attachment: { type: 'image' | 'video' | 'file'; url: string; name?: string; size?: string }) {
   if ((attachment.type === 'image' || attachment.type === 'video') && attachment.url) {
-    console.log('Открытие предпросмотра:', attachment);
     previewAttachment.value = attachment;
-  } else {
-    console.warn('Пропуск предпросмотра: некорректный тип или отсутствует URL', attachment);
   }
 }
 
@@ -374,6 +400,7 @@ const widgetClasses = computed(() => ({
         @search="openSearch"
         @send-message="handleSendMessage"
         @preview="handlePreview"
+        @delete-message="handleDeleteMessage"
       />
     </transition>
 

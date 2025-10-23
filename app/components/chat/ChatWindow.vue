@@ -30,6 +30,7 @@ const emit = defineEmits<{
   (e: 'send-message', conversationId: number, content: string | null, replyToMessageId?: number, attachment?: File): void;
   (e: 'preview', attachment: { type: 'image' | 'video' | 'file'; url: string; name?: string; size?: string }): void;
   (e: 'scroll-to-reply', id: number): void;
+  (e: 'delete-message', id: number): void; // ✅ Добавлено
 }>();
 
 const messagesContainer = ref<HTMLDivElement | null>(null);
@@ -148,6 +149,12 @@ function handleScrollToReply(id: number) {
 function handlePreview(attachment: { type: 'image' | 'video' | 'file'; url: string; name?: string; size?: string }) {
   emit('preview', attachment);
 }
+
+// ✅ НОВЫЙ обработчик удаления
+function handleDeleteMessage(id: number) {
+  console.log('Delete message ID:', id);
+  emit('delete-message', id);
+}
 </script>
 
 <template>
@@ -168,6 +175,7 @@ function handlePreview(attachment: { type: 'image' | 'video' | 'file'; url: stri
         @search="handleSearch"
         @scroll-to-reply="handleScrollToReply"
         @preview="handlePreview"
+        @delete="handleDeleteMessage"
       />
     </div>
     <MessageInput
