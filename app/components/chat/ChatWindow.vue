@@ -34,13 +34,13 @@ const emit = defineEmits<{
   (e: 'preview', attachment: { type: 'image' | 'video' | 'file'; url: string; name?: string; size?: string }): void;
   (e: 'delete-message', id: number): void;
   (e: 'search-query', query: string): void;
+  (e: 'forward-message', payload: [number, number, number[]]): void;
 }>();
 
 const messagesContainer = ref<HTMLDivElement | null>(null);
 const replyingTo = ref<number | undefined>(undefined);
 const highlightedMessageId = ref<number | null>(null);
 
-// ✅ ЛОКАЛЬНЫЕ computed для reply
 const messages = computed(() => {
   if (props.isSearchMode) {
     return props.searchResults;
@@ -75,7 +75,6 @@ const replyingPreview = computed(() => {
   return null;
 });
 
-// ✅ ФУНКЦИИ
 function scrollToBottom(behavior: 'smooth' | 'auto' = 'smooth') {
   nextTick(() => {
     if (messagesContainer.value) {
@@ -122,12 +121,11 @@ function scrollToMessage(id: number, highlightDuration: number = 3000) {
   });
 }
 
-// ✅ Автоматическая прокрутка к последнему сообщению
 watch(messages, (newMessages) => {
   if (newMessages.length > 0) {
-    scrollToBottom('smooth'); // Плавная прокрутка к последнему сообщению
+    scrollToBottom('smooth');
   }
-}, { deep: true, immediate: true }); // immediate для начальной прокрутки
+}, { deep: true, immediate: true });
 
 async function sendMessage(text: string, attachments?: File[]) {
   if (!props.activeChat) return;
@@ -171,6 +169,12 @@ function handlePreview(attachment: { type: 'image' | 'video' | 'file'; url: stri
 
 function handleDeleteMessage(id: number) {
   emit('delete-message', id);
+}
+
+function handleForwardMessage(messageId: number) {
+  if (!props.activeChat) return;
+  // Открываем модальное окно через родительский компонент
+  emit('forward-message', [props.activeChat.id, messageId, []]);
 }
 
 defineExpose({
@@ -222,6 +226,7 @@ defineExpose({
         @reply="setReply"
         @preview="handlePreview"
         @delete="handleDeleteMessage"
+        @forward="handleForwardMessage"
       />
     </div>
 
@@ -237,6 +242,7 @@ defineExpose({
 </template>
 
 <style scoped>
+/* Стили остаются без изменений */
 .search-header {
   padding: 0.75rem 1rem;
   background: #f8fafc;
@@ -315,7 +321,6 @@ defineExpose({
   scroll-behavior: smooth;
 }
 
-/* ✅ УНИВЕРСАЛЬНАЯ ПОДСВЕТКА */
 .message-highlight {
   animation: messageHighlight 3s cubic-bezier(0.4, 0, 0.2, 1) !important;
   background: #fef3c7 !important;

@@ -14,6 +14,7 @@ const props = defineProps({
     type: Object as PropType<{ id: number; author?: string; text: string } | null>,
     default: null,
   },
+  id: { type: Number, required: true }, // ✅ Добавляем id сообщения
 });
 
 const emit = defineEmits<{
@@ -21,6 +22,7 @@ const emit = defineEmits<{
   (e: 'reply'): void;
   (e: 'scroll-to-reply', id: number): void;
   (e: 'delete'): void;
+  (e: 'forward'): void; // ✅ Добавляем событие forward
 }>();
 
 const hover = ref(false);
@@ -40,11 +42,14 @@ function handleScrollToReply(id: number) {
 function handleDelete() {
   emit('delete');
 }
+
+function handleForward() {
+  emit('forward'); // ✅ Эмитим событие forward
+}
 </script>
 
 <template>
   <div class="message-text">
-    <!-- Автор и действия -->
     <div class="author-row" @mouseenter="hover = true" @mouseleave="hover = false">
       <p class="author" :class="{ self: props.self }">{{ props.author || 'Unknown' }}</p>
       <div class="author-actions" v-show="hover">
@@ -54,6 +59,7 @@ function handleDelete() {
           @reaction-selected="addReaction"
           @reply="reply"
           @delete="handleDelete"
+          @forward="handleForward" 
         />
       </div>
     </div>

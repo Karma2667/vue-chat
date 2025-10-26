@@ -23,7 +23,8 @@ const emit = defineEmits<{
   (e: 'search'): void;
   (e: 'preview', attachment: { type: 'image' | 'video' | 'file'; url: string; name?: string; size?: string }): void;
   (e: 'scroll-to-reply', id: number): void;
-  (e: 'delete', id: number): void; // ✅ НОВОЕ: событие удаления
+  (e: 'delete', id: number): void;
+  (e: 'forward', id: number): void;
 }>();
 
 const reactions = ref<string[]>([]);
@@ -58,14 +59,19 @@ function handleScrollToReply(id: number) {
 
 function handleDelete() {
   console.log('Delete message ID:', props.id);
-  emit('delete', props.id); // ✅ Передаем ID сообщения для удаления
+  emit('delete', props.id);
+}
+
+function handleForward() {
+  console.log('Forward message ID:', props.id);
+  emit('forward', props.id);
 }
 </script>
 
 <template>
-  <div :class="['message-item', { self: props.self }]" :id="`message-${props.id}`">
-    <!-- Основной текст + reply -->
+  <div :class="['message-item', { self: props.self }]" :id="`message-${props.id}`" :data-message-id="props.id">
     <MessageText
+      :id="props.id"
       :text="props.text"
       :time="props.time"
       :author="props.author"
@@ -76,9 +82,9 @@ function handleDelete() {
       @reply="handleReply"
       @scroll-to-reply="handleScrollToReply"
       @delete="handleDelete"
+      @forward="handleForward"
     />
 
-    <!-- Вложения -->
     <div v-if="props.attachments?.length" class="attachments">
       <AttachmentMessage
         v-for="(a, i) in props.attachments"

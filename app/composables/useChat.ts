@@ -2,7 +2,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { toRefs } from 'vue';
 import { fetchConversations, type Conversation } from '~/utils/conversations';
 import { createPrivateChat } from '~/utils/createPrivateChat';
-import { sendMessage, fetchMessages, getAttachmentUrl, searchMessages, type Attachment, type Message } from '~/utils/messages';
+import { sendMessage, fetchMessages, getAttachmentUrl, searchMessages, forwardMessage as forwardMessageAPI, type Attachment, type Message } from '~/utils/messages';
 import { authService } from '~/utils/auth';
 
 export interface Dialog {
@@ -135,7 +135,6 @@ export function useChat() {
         })
       );
 
-      // ✅ Реактивное обновление chats
       chatState.chats.value[dialog.id] = tempMessages.map((msg: any) => {
         const reply_to = msg.reply_to;
         return {
@@ -167,7 +166,7 @@ export function useChat() {
       );
 
       if (response.success) {
-        await openChat(chat); // Перезагрузка чата для обновления
+        await openChat(chat);
       }
     } catch (error: any) {
       alert('Ошибка удаления: ' + (error.message || 'Неизвестная ошибка'));
@@ -226,6 +225,19 @@ export function useChat() {
     }
   }
 
+  async function forwardMessage(conversationId: number, messageId: number, conversationIds: number[]) {
+    try {
+      const response = await forwardMessageAPI(conversationId, messageId, conversationIds); // ✅ Use renamed import
+      if (response.success) {
+        console.log('Сообщение успешно переслано:', response.message);
+        await loadConversations();
+      }
+    } catch (error: any) {
+      console.error('Ошибка пересылки:', error.message);
+      alert('Ошибка пересылки: ' + (error.message || 'Неизвестная ошибка'));
+    }
+}
+
   async function handleSelectUser(user: { id: number; username: string }) {
     const existingDialog = chatState.dialogs.value.find(
       (d: Dialog) => d.from === user.username && d.type === 'private_chat'
@@ -279,8 +291,7 @@ export function useChat() {
         );
       }
 
-      // ✅ Используем имя файла, если нет текста
-      const finalContent = content || (attachment ? attachment.name : null);
+      const finalContent = content || (attachment ? attachment?.name : null);
 
       const request = {
         message: {
@@ -315,12 +326,11 @@ export function useChat() {
           : [],
       };
 
-      // ✅ Реактивное обновление chats
       if (!chatState.chats.value[conversationId]) {
         chatState.chats.value[conversationId] = [];
       }
       chatState.chats.value[conversationId].push(newMessage);
-      state.chats = { ...state.chats }; // Принудительное обновление реактивности
+      state.chats = { ...state.chats };
     } catch (error: any) {
       console.error('Ошибка отправки:', error);
       alert('Ошибка отправки: ' + error.message);
@@ -371,8 +381,7 @@ export function useChat() {
 
   function handleSearch() {
     if (chatState.activeChat.value) {
-      chatState.searchQuery.value = ''; // Очищаем
-      // isSearchMode сработает автоматически через computed
+      chatState.searchQuery.value = '';
     }
   }
 
@@ -390,5 +399,6 @@ export function useChat() {
     handlePreview,
     handleSelectUser,
     handleSearch,
+    forwardMessage, // ✅ Добавляем forwardMessage
   };
 }

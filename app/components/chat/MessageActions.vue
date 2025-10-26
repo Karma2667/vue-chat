@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, defineProps, defineEmits } from 'vue'
-import ReactionPicker from './ReactionPicker.vue'
+import { defineProps, defineEmits, ref } from 'vue';
+import ReactionPicker from './ReactionPicker.vue';
 import {
   PhSmiley,
   PhArrowBendLeftUp,
@@ -8,37 +8,42 @@ import {
   PhPencilSimple,
   PhFlag,
   PhPushPin,
-  PhTrashSimple // ✅ Добавляем иконку удаления
-} from '@phosphor-icons/vue'
+  PhTrashSimple,
+} from '@phosphor-icons/vue';
 
 const props = defineProps<{
-  self?: boolean
-  existingReactions?: string[]
-}>()
+  self?: boolean;
+  existingReactions?: string[];
+}>();
 
 const emit = defineEmits<{
-  (e: 'reaction-selected', emoji: string): void
-  (e: 'reply'): void
-  (e: 'delete'): void // ✅ НОВОЕ: событие удаления
-}>()
+  (e: 'reaction-selected', emoji: string): void;
+  (e: 'reply'): void;
+  (e: 'forward'): void; // ✅ Новый эвент для пересылки
+  (e: 'delete'): void;
+}>();
 
-const showReactions = ref(false)
+const showReactions = ref(false);
 
 function togglePicker() {
-  showReactions.value = !showReactions.value
+  showReactions.value = !showReactions.value;
 }
 
 function selectReaction(emoji: string) {
-  emit('reaction-selected', emoji)
-  showReactions.value = false
+  emit('reaction-selected', emoji);
+  showReactions.value = false;
 }
 
 function reply() {
-  emit('reply')
+  emit('reply');
+}
+
+function forward() {
+  emit('forward'); // ✅ Эмитим пересылку
 }
 
 function deleteMessage() {
-  emit('delete') // ✅ Эмитим событие удаления
+  emit('delete');
 }
 </script>
 
@@ -67,9 +72,10 @@ function deleteMessage() {
       weight="regular"
       class="small-icon"
       title="Переслать"
+      @click="forward"
     />
 
-    <!-- ✅ УДАЛЕНИЕ (только для своих сообщений) -->
+    <!-- Удаление (только для своих сообщений) -->
     <PhTrashSimple
       v-if="props.self"
       size="18"

@@ -14,9 +14,9 @@ export interface Message {
 }
 
 export interface Attachment {
-  id?: string; // id может отсутствовать в ответах fetchMessages
+  id?: string;
   storage?: string;
-  url?: string; // Добавлено для поддержки существующих ответов сервера
+  url?: string;
   filename?: string;
   size?: number;
   mime_type?: string;
@@ -33,6 +33,23 @@ export interface SendMessageResponse {
   message: Message;
 }
 
+export interface MessagesSearchResponse {
+  messages: Message[];
+  meta: {
+    pagination: {
+      current_page: number;
+      total_pages: number;
+      total_count: number;
+      per_page: number;
+    };
+  };
+}
+
+export interface ForwardMessageResponse {
+  success: boolean;
+  message: string;
+}
+
 export async function fetchMessages(conversationId: number, items: number = 20): Promise<Message[]> {
   let allMessages: Message[] = [];
   let currentPage = 1;
@@ -42,15 +59,14 @@ export async function fetchMessages(conversationId: number, items: number = 20):
     while (hasMoreMessages) {
       const response = await authService.makeRequest<{
         messages: Message[];
-        total_pages?: number; // total_pages может отсутствовать
+        total_pages?: number;
         current_page?: number;
       }>(`/conversations/${conversationId}/messages?page=${currentPage}&items=${items}`, 'GET');
 
       console.log(`Полный ответ сервера (страница ${currentPage}):`, JSON.stringify(response, null, 2));
       
-      // Проверяем сообщения
       if (!response.messages || response.messages.length === 0) {
-        hasMoreMessages = false; // Если сообщений нет, прерываем цикл
+        hasMoreMessages = false;
         break;
       }
 
@@ -62,7 +78,6 @@ export async function fetchMessages(conversationId: number, items: number = 20):
 
       allMessages = [...allMessages, ...response.messages];
 
-      // Если сервер возвращает total_pages, используем его
       if (response.total_pages && response.current_page) {
         if (currentPage >= response.total_pages) {
           hasMoreMessages = false;
@@ -136,18 +151,6 @@ export async function getAttachmentUrl(attachmentId: string): Promise<string> {
     throw new Error(error.response?.data?.message || 'Не удалось загрузить изображение');
   }
 }
-// ✅ ДОБАВЬ в messages.ts
-export interface MessagesSearchResponse {
-  messages: Message[];
-  meta: {
-    pagination: {
-      current_page: number;
-      total_pages: number;
-      total_count: number;
-      per_page: number;
-    };
-  };
-}
 
 export async function searchMessages(
   conversationId: number, 
@@ -165,5 +168,41 @@ export async function searchMessages(
   } catch (error: any) {
     console.error('Ошибка поиска сообщений:', error.message, error.response?.data);
     throw new Error(error.response?.data?.message || 'Не удалось найти сообщения');
+  }
+}
+
+export async function forwardMessage(
+  conversationId: number,
+  messageId: number,
+  conversationIds: number[]
+): Promise<ForwardMessageResponse> {
+  try {
+    const response = await authService.makeRequest<ForwardMessageResponse>(
+      `conversations/${conversationId}/messages/${messageId}/forward`,
+      'POST',
+      {
+        conversation_ids: conversationIds,
+      },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    console.log('Сообщение успешно переслано:', response);
+    return response;
+  } catch (error: any) {
+    console.error('Ошибка при пересылке сообщения:', error.message, error.response?.data);
+    let errorMsg = 'Не удалось переслать сообщение';
+    if (error.response?.status === 401) {
+      errorMsg = 'Неавторизован';
+    } else if (error.response?.status === 404) {
+      errorMsg = 'Сообщение не найдено в данном диалоге';
+    } else if (error.response?.status === 422) {
+      errorMsg = 'Некорректные параметры';
+    }
+    console.error('Детали ошибки:', {
+      status: error.response?.status,
+      data: error.response?.data,
+      headers: error.response?.headers,
+      xRequestId: error.response?.headers?.['x-request-id'],
+    });
+    throw new Error(errorMsg);
   }
 }

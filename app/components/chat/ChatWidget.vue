@@ -1,6 +1,5 @@
 <template>
   <div class="messenger-widget" :class="widgetClasses">
-    <!-- Кнопка открытия чата -->
     <transition name="toggle-fade">
       <ChatToggle
         v-if="!isOpen"
@@ -10,10 +9,8 @@
       />
     </transition>
 
-    <!-- Затемнение фона -->
     <Backdrop v-if="isOpen" @close="toggleWidget" />
 
-    <!-- Основная панель чата -->
     <transition name="panel-slide">
       <ChatPanel
         v-if="isOpen"
@@ -33,10 +30,10 @@
         @preview="handlePreview"
         @delete-message="deleteMessage"
         @search-query="performSearch"
+        @forward-message="forwardMessage(...$event)" 
       />
     </transition>
 
-    <!-- ✅ ПОИСК ПОЛЬЗОВАТЕЛЕЙ -->
     <UserSearch
       :visible="showSearch"
       :conversation-id="activeChat?.id"
@@ -45,7 +42,6 @@
       @close="showSearch = false"
     />
 
-    <!-- ✅ ПОИСК СООБЩЕНИЙ -->
     <MessageSearch
       :visible="messageSearchVisible"
       :conversation-id="activeChat?.id"
@@ -53,7 +49,6 @@
       @close="messageSearchVisible = false"
     />
 
-    <!-- ✅ ПРЕДВАРИТЕЛЬНЫЙ ПРОСМОТР ВЛОЖЕНИЯ -->
     <AttachmentPreview
       v-if="previewAttachment"
       :attachment="previewAttachment"
@@ -73,7 +68,6 @@ import UserSearch from './UserSearch.vue'
 import MessageSearch from './MessageSearch.vue'
 import AttachmentPreview from './AttachmentPreview.vue'
 
-// ✅ ВСЁ ИЗ useChat
 import { useChat } from '~/composables/useChat'
 
 const {
@@ -98,12 +92,11 @@ const {
   handlePreview,
   handleSelectUser,
   clearSearch,
+  forwardMessage, // ✅ Добавляем forwardMessage
 } = useChat()
 
-// ✅ MessageSearch состояние
 const messageSearchVisible = ref(false)
 
-// ✅ ОБРАБОТЧИКИ
 function handleSearch() {
   console.log('🔍 Поиск сообщений активирован!')
   if (activeChat.value) {
@@ -114,7 +107,6 @@ function handleSearch() {
 function onMessageSelect(message: ChatMessage) {
   console.log('📄 Выбрано сообщение:', message.id)
   
-  // Прокрутка к сообщению
   const element = document.querySelector(`[data-message-id="${message.id}"]`)
   if (element) {
     element.scrollIntoView({ 
@@ -122,24 +114,20 @@ function onMessageSelect(message: ChatMessage) {
       block: 'center' 
     })
     
-    // Подсветка сообщения
     element.classList.add('message-highlight')
     setTimeout(() => {
       element.classList.remove('message-highlight')
     }, 3000)
   }
   
-  // Закрываем поиск
   messageSearchVisible.value = false
 }
 
-// ✅ Классы виджета
 const widgetClasses = computed(() => ({
   'is-open': isOpen.value,
   'panel-inited': true, 
 }))
 
-// ✅ Инициализация
 onMounted(() => {
   loadConversations()
 })
@@ -152,7 +140,7 @@ onMounted(() => {
   width: 400px;
   right: 0;
   left: auto;
-  z-index: 10000; /* Высокий z-index */
+  z-index: 10000;
 }
 
 .messenger-widget > * {
@@ -160,7 +148,6 @@ onMounted(() => {
   pointer-events: auto !important;
 }
 
-/* Z-INDEX ИЕРАРХИЯ */
 .backdrop {
   z-index: 10001;
 }
@@ -176,12 +163,10 @@ onMounted(() => {
   right: 24px;
 }
 
-/* UserSearch & MessageSearch — НА ВЕРХУ ВСЕГО */
 :deep(.overlay) {
   z-index: 10004 !important;
 }
 
-/* АНИМАЦИИ */
 .toggle-fade-enter-active,
 .toggle-fade-leave-active {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
