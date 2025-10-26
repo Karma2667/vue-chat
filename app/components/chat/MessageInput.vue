@@ -5,7 +5,7 @@ import AttachmentMessage from './AttachmentMessage.vue';
 import ReplyMessage from './ReplyMessage.vue';
 
 const props = defineProps<{
-  replyingText?: string;  // ✅ ИСПРАВЛЕНО: было replyingTo
+  replyingText?: string;
   replyingAuthor?: string;
   replyingId?: number;
 }>();
@@ -31,7 +31,13 @@ function sendMessage() {
   const text = message.value.trim();
   if (!text && files.value.length === 0) return;
 
-  emit('send', text, files.value);
+  // ✅ ПРОВЕРКА НА СУЩЕСТВОВАНИЕ ПЕРВОГО ФАЙЛА
+  let content = text;
+  if (!text && files.value.length > 0) {
+    content = files.value[0]?.name || 'Вложение'; // Используем опциональную цепочку
+  }
+
+  emit('send', content, files.value);
 
   message.value = '';
   attachments.value.forEach((a) => URL.revokeObjectURL(a.url));
@@ -93,14 +99,12 @@ function cancelReply() {
 }
 
 function handleScrollToReply(id: number) {
-  console.log('Scroll to reply ID:', id);
   emit('scroll-to-reply', id);
 }
 </script>
 
 <template>
   <div class="message-input">
-    <!-- ✅ ИСПРАВЛЕНО: Показываем reply даже для вложений без текста -->
     <div v-if="props.replyingText" class="replying-to">
       <ReplyMessage
         :id="props.replyingId!"
@@ -113,13 +117,11 @@ function handleScrollToReply(id: number) {
       </button>
     </div>
 
-    <!-- Кнопка для файлов -->
     <button class="icon-btn" @click="openFileDialog">
       <i class="fas fa-paperclip"></i>
     </button>
     <input type="file" multiple hidden ref="fileInput" @change="handleFiles" />
 
-    <!-- Поле ввода -->
     <input
       ref="inputRef"
       v-model="message"
@@ -129,7 +131,6 @@ function handleScrollToReply(id: number) {
       class="input"
     />
 
-    <!-- Правый блок -->
     <div class="right-icons">
       <button class="icon-btn"><i class="fas fa-font"></i></button>
       <button class="icon-btn" @click="toggleEmojiPicker">
@@ -143,12 +144,10 @@ function handleScrollToReply(id: number) {
       </button>
     </div>
 
-    <!-- Эмоджи -->
     <transition name="fade">
       <EmojiPicker v-if="showEmojiPicker" @select="insertEmoji" />
     </transition>
 
-    <!-- Вложения -->
     <transition-group name="fade" tag="div" class="attachments-preview">
       <div v-for="(a, index) in attachments" :key="a.url" class="attachment-wrapper">
         <AttachmentMessage :attachment="a" />
@@ -159,6 +158,7 @@ function handleScrollToReply(id: number) {
     </transition-group>
   </div>
 </template>
+
 
 <style scoped>
 .message-input {

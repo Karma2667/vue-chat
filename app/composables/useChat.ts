@@ -1,49 +1,49 @@
-import { ref, reactive, computed, onMounted } from 'vue'
-import { toRefs } from 'vue'
-import { fetchConversations, type Conversation } from '~/utils/conversations'
-import { createPrivateChat } from '~/utils/createPrivateChat'
-import { sendMessage, fetchMessages, getAttachmentUrl, searchMessages, type Attachment, type Message } from '~/utils/messages'
-import { authService } from '~/utils/auth'
+import { ref, reactive, computed, onMounted } from 'vue';
+import { toRefs } from 'vue';
+import { fetchConversations, type Conversation } from '~/utils/conversations';
+import { createPrivateChat } from '~/utils/createPrivateChat';
+import { sendMessage, fetchMessages, getAttachmentUrl, searchMessages, type Attachment, type Message } from '~/utils/messages';
+import { authService } from '~/utils/auth';
 
 export interface Dialog {
-  id: number
-  from: string
-  type?: string
-  lastMessage?: { content: string; created_at: string; username: string }
+  id: number;
+  from: string;
+  type?: string;
+  lastMessage?: { content: string; created_at: string; username: string };
 }
 
 export interface ChatMessage {
-  id: number
-  text: string
-  time: string
-  author: string
-  self: boolean
-  reply: { id: number; text: string; author: string } | null
+  id: number;
+  text: string;
+  time: string;
+  author: string;
+  self: boolean;
+  reply: { id: number; text: string; author: string } | null;
   attachments: Array<{
-    type: 'image' | 'video' | 'file'
-    url: string
-    name?: string
-    size?: string
-  }>
+    type: 'image' | 'video' | 'file';
+    url: string;
+    name?: string;
+    size?: string;
+  }>;
 }
 
 interface ChatState {
-  currentUserId: number | null
-  isOpen: boolean
-  currentScreen: 'dialogs' | 'chat'
-  activeChat: Dialog | null
-  dialogs: Dialog[]
-  chats: Record<number, ChatMessage[]>
-  showSearch: boolean
+  currentUserId: number | null;
+  isOpen: boolean;
+  currentScreen: 'dialogs' | 'chat';
+  activeChat: Dialog | null;
+  dialogs: Dialog[];
+  chats: Record<number, ChatMessage[]>;
+  showSearch: boolean;
   previewAttachment: {
-    type: 'image' | 'video' | 'file'
-    url: string
-    name?: string
-    size?: string
-  } | null
-  searchQuery: string
-  searchResults: ChatMessage[]
-  isSearching: boolean
+    type: 'image' | 'video' | 'file';
+    url: string;
+    name?: string;
+    size?: string;
+  } | null;
+  searchQuery: string;
+  searchResults: ChatMessage[];
+  isSearching: boolean;
 }
 
 export function useChat() {
@@ -59,78 +59,85 @@ export function useChat() {
     searchQuery: '',
     searchResults: [],
     isSearching: false,
-  })
+  });
 
-  const chatState = toRefs(state)
+  const chatState = toRefs(state);
 
   async function getAuthenticatedUrl(attachment: { id?: string; url?: string; mime_type?: string }): Promise<string> {
-    if (!attachment.id && !attachment.url) return ''
+    if (!attachment.id && !attachment.url) return '';
     try {
-      if (attachment.id) return await getAttachmentUrl(attachment.id)
-      return attachment.url || ''
+      if (attachment.id) return await getAttachmentUrl(attachment.id);
+      return attachment.url || '';
     } catch {
-      return ''
+      return '';
     }
   }
 
   async function loadConversations() {
     try {
-      const response = await fetchConversations(1, 20)
+      const response = await fetchConversations(1, 20);
       chatState.dialogs.value = response.conversations.map((conv: Conversation) => ({
         id: conv.id,
         from: conv.other_user_info?.username || conv.name || 'Без имени',
         type: conv.conversation_type,
-        lastMessage: conv.last_message_preview ? {
-          content: conv.last_message_preview.content,
-          created_at: new Date(conv.last_message_preview.created_at).toLocaleTimeString([], {
-            hour: '2-digit', minute: '2-digit'
-          }),
-          username: conv.last_message_preview.username,
-        } : undefined,
-      }))
+        lastMessage: conv.last_message_preview
+          ? {
+              content: conv.last_message_preview.content,
+              created_at: new Date(conv.last_message_preview.created_at).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              }),
+              username: conv.last_message_preview.username,
+            }
+          : undefined,
+      }));
     } catch (error: any) {
-      console.error('Не удалось загрузить диалоги:', error.message)
+      console.error('Не удалось загрузить диалоги:', error.message);
     }
   }
 
   async function openChat(dialog: Dialog) {
-    chatState.activeChat.value = dialog
-    chatState.currentScreen.value = 'chat'
+    chatState.activeChat.value = dialog;
+    chatState.currentScreen.value = 'chat';
 
     try {
-      const messages = await fetchMessages(dialog.id)
-      const tempMessages = await Promise.all(messages.map(async (msg: Message) => {
-        let attachments: ChatMessage['attachments'] = []
-        if (msg.attachment && (msg.attachment.id || msg.attachment.url)) {
-          const mimeType = msg.attachment.mime_type || ''
-          const type: 'image' | 'video' | 'file' = 
-            mimeType.startsWith('image/') ? 'image' :
-            mimeType.startsWith('video/') ? 'video' : 'file'
-          
-          attachments = [{
-            type,
-            url: await getAuthenticatedUrl(msg.attachment),
-            name: msg.attachment.filename,
-            size: msg.attachment.size ? `${(Number(msg.attachment.size) / 1024).toFixed(2)} KB` : undefined,
-          }]
-        }
+      const messages = await fetchMessages(dialog.id);
+      const tempMessages = await Promise.all(
+        messages.map(async (msg: Message) => {
+          let attachments: ChatMessage['attachments'] = [];
+          if (msg.attachment && (msg.attachment.id || msg.attachment.url)) {
+            const mimeType = msg.attachment.mime_type || '';
+            const type: 'image' | 'video' | 'file' =
+              mimeType.startsWith('image/') ? 'image' : mimeType.startsWith('video/') ? 'video' : 'file';
 
-        const tempMsg: any = {
-          id: msg.id,
-          text: msg.content || '',
-          time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          author: msg.user?.username || 'Unknown',
-          self: state.currentUserId !== null && msg.user_id === state.currentUserId,
-          reply: null,
-          reply_to: typeof msg.reply_to === 'object' && msg.reply_to ? msg.reply_to.id : msg.reply_to,
-          attachments,
-        }
+            attachments = [
+              {
+                type,
+                url: await getAuthenticatedUrl(msg.attachment),
+                name: msg.attachment.filename,
+                size: msg.attachment.size ? `${(Number(msg.attachment.size) / 1024).toFixed(2)} KB` : undefined,
+              },
+            ];
+          }
 
-        return tempMsg
-      }))
+          const tempMsg: any = {
+            id: msg.id,
+            text: msg.content || '',
+            time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            author: msg.user?.username || 'Unknown',
+            self: state.currentUserId !== null && msg.user_id === state.currentUserId,
+            reply: null,
+            reply_to: typeof msg.reply_to === 'object' && msg.reply_to ? msg.reply_to.id : msg.reply_to,
+            attachments,
+          };
 
+          return tempMsg;
+        })
+      );
+
+      // ✅ Реактивное обновление chats
       chatState.chats.value[dialog.id] = tempMessages.map((msg: any) => {
-        const reply_to = msg.reply_to
+        const reply_to = msg.reply_to;
         return {
           ...msg,
           reply: reply_to
@@ -140,107 +147,111 @@ export function useChat() {
                 author: tempMessages.find((m: any) => m.id === reply_to)?.author || 'Unknown',
               }
             : null,
-        } as ChatMessage
-      })
+        } as ChatMessage;
+      });
     } catch (error: any) {
-      console.error('Ошибка загрузки сообщений:', error.message)
+      console.error('Ошибка загрузки сообщений:', error.message);
     }
   }
 
   async function deleteMessage(messageId: number) {
-    const chat = chatState.activeChat.value
-    if (!chat) return
+    const chat = chatState.activeChat.value;
+    if (!chat) return;
 
-    if (!confirm('Удалить это сообщение?')) return
+    if (!confirm('Удалить это сообщение?')) return;
 
     try {
       const response = await authService.makeRequest<{ success: boolean; message: string }>(
-        `/conversations/${chat.id}/messages/${messageId}`, 'DELETE'
-      )
-      
+        `/conversations/${chat.id}/messages/${messageId}`,
+        'DELETE'
+      );
+
       if (response.success) {
-        await openChat(chat)
+        await openChat(chat); // Перезагрузка чата для обновления
       }
     } catch (error: any) {
-      alert('Ошибка удаления: ' + (error.message || 'Неизвестная ошибка'))
+      alert('Ошибка удаления: ' + (error.message || 'Неизвестная ошибка'));
     }
   }
 
   async function performSearch(query: string) {
     if (!chatState.activeChat.value || !query.trim()) {
-      chatState.searchResults.value = []
-      chatState.searchQuery.value = ''
-      return
+      chatState.searchResults.value = [];
+      chatState.searchQuery.value = '';
+      return;
     }
 
-    chatState.isSearching.value = true
-    chatState.searchQuery.value = query
+    chatState.isSearching.value = true;
+    chatState.searchQuery.value = query;
 
     try {
-      const response = await searchMessages(chatState.activeChat.value.id, query, 1)
-      
-      const tempMessages = await Promise.all(response.messages.map(async (msg: Message) => {
-        let attachments: ChatMessage['attachments'] = []
-        if (msg.attachment && (msg.attachment.id || msg.attachment.url)) {
-          const mimeType = msg.attachment.mime_type || ''
-          const type: 'image' | 'video' | 'file' = 
-            mimeType.startsWith('image/') ? 'image' :
-            mimeType.startsWith('video/') ? 'video' : 'file'
-          
-          attachments = [{
-            type,
-            url: await getAuthenticatedUrl(msg.attachment),
-            name: msg.attachment.filename,
-            size: msg.attachment.size ? `${(Number(msg.attachment.size) / 1024).toFixed(2)} KB` : undefined,
-          }]
-        }
+      const response = await searchMessages(chatState.activeChat.value.id, query, 1);
 
-        return {
-          id: msg.id,
-          text: msg.content || '',
-          time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          author: msg.user?.username || 'Unknown',
-          self: state.currentUserId !== null && msg.user_id === state.currentUserId,
-          reply: null,
-          attachments,
-        } as ChatMessage
-      }))
+      const tempMessages = await Promise.all(
+        response.messages.map(async (msg: Message) => {
+          let attachments: ChatMessage['attachments'] = [];
+          if (msg.attachment && (msg.attachment.id || msg.attachment.url)) {
+            const mimeType = msg.attachment.mime_type || '';
+            const type: 'image' | 'video' | 'file' =
+              mimeType.startsWith('image/') ? 'image' : mimeType.startsWith('video/') ? 'video' : 'file';
 
-      chatState.searchResults.value = tempMessages
+            attachments = [
+              {
+                type,
+                url: await getAuthenticatedUrl(msg.attachment),
+                name: msg.attachment.filename,
+                size: msg.attachment.size ? `${(Number(msg.attachment.size) / 1024).toFixed(2)} KB` : undefined,
+              },
+            ];
+          }
+
+          return {
+            id: msg.id,
+            text: msg.content || '',
+            time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            author: msg.user?.username || 'Unknown',
+            self: state.currentUserId !== null && msg.user_id === state.currentUserId,
+            reply: null,
+            attachments,
+          } as ChatMessage;
+        })
+      );
+
+      chatState.searchResults.value = tempMessages;
     } catch (error: any) {
-      console.error('Ошибка поиска:', error)
-      chatState.searchResults.value = []
+      console.error('Ошибка поиска:', error);
+      chatState.searchResults.value = [];
     } finally {
-      chatState.isSearching.value = false
+      chatState.isSearching.value = false;
     }
   }
 
   async function handleSelectUser(user: { id: number; username: string }) {
     const existingDialog = chatState.dialogs.value.find(
       (d: Dialog) => d.from === user.username && d.type === 'private_chat'
-    )
+    );
 
     if (existingDialog) {
-      openChat(existingDialog)
-      chatState.showSearch.value = false
-      return
+      openChat(existingDialog);
+      chatState.showSearch.value = false;
+      return;
     }
 
     try {
-      const conversation = await createPrivateChat(user.id)
+      const conversation = await createPrivateChat(user.id);
       const newDialog: Dialog = {
         id: conversation.id,
         from: user.username,
         type: conversation.conversation_type,
-      }
-      chatState.dialogs.value.push(newDialog)
-      chatState.chats.value[newDialog.id] = []
-      openChat(newDialog)
+      };
+      chatState.dialogs.value.push(newDialog);
+      chatState.chats.value[newDialog.id] = [];
+      openChat(newDialog);
     } catch (err: any) {
-      console.error('Ошибка создания чата:', err.message)
-      alert('Ошибка создания чата: ' + err.message)
+      console.error('Ошибка создания чата:', err.message);
+      alert('Ошибка создания чата: ' + err.message);
     } finally {
-      chatState.showSearch.value = false
+      chatState.showSearch.value = false;
     }
   }
 
@@ -251,102 +262,120 @@ export function useChat() {
     attachment?: File
   ) {
     if (!conversationId) {
-      alert('Ошибка: не выбран чат')
-      return
+      alert('Ошибка: не выбран чат');
+      return;
     }
 
     try {
-      let attachmentData: Attachment | undefined
+      let attachmentData: Attachment | undefined;
       if (attachment) {
-        const formData = new FormData()
-        formData.append('file', attachment)
+        const formData = new FormData();
+        formData.append('file', attachment);
         attachmentData = await authService.makeRequest<Attachment>(
           '/attachments/upload',
           'POST',
           formData,
           { headers: { 'Content-Type': 'multipart/form-data' } }
-        )
+        );
       }
+
+      // ✅ Используем имя файла, если нет текста
+      const finalContent = content || (attachment ? attachment.name : null);
 
       const request = {
         message: {
-          content,
+          content: finalContent,
           reply_to_message_id: replyToMessageId,
           attachment: attachmentData,
-        }
-      }
-      const response = await sendMessage(conversationId, request)
+        },
+      };
+      const response = await sendMessage(conversationId, request);
 
-      const user = authService.getUser()
-      const username = user?.username || 'Вы'
+      const user = authService.getUser();
+      const username = user?.username || 'Вы';
 
       const newMessage: ChatMessage = {
         id: response.id,
-        text: response.content || '',
+        text: response.content || (attachment ? attachment?.name || '' : ''),
         time: response.created_at
           ? new Date(response.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         author: response.user?.username || username,
         self: state.currentUserId !== null && response.user_id === state.currentUserId,
         reply: null,
-        attachments: [],
-      }
+        attachments: attachmentData
+          ? [
+              {
+                type: attachment?.type?.startsWith('image/') ? 'image' : attachment?.type?.startsWith('video/') ? 'video' : 'file',
+                url: await getAuthenticatedUrl(attachmentData),
+                name: attachment?.name,
+                size: attachment?.size ? `${(Number(attachment.size) / 1024).toFixed(2)} KB` : undefined,
+              },
+            ]
+          : [],
+      };
 
-      if (!chatState.chats.value[conversationId]) chatState.chats.value[conversationId] = []
-      chatState.chats.value[conversationId].push(newMessage)
+      // ✅ Реактивное обновление chats
+      if (!chatState.chats.value[conversationId]) {
+        chatState.chats.value[conversationId] = [];
+      }
+      chatState.chats.value[conversationId].push(newMessage);
+      state.chats = { ...state.chats }; // Принудительное обновление реактивности
     } catch (error: any) {
-      console.error('Ошибка отправки:', error)
-      alert('Ошибка отправки: ' + error.message)
+      console.error('Ошибка отправки:', error);
+      alert('Ошибка отправки: ' + error.message);
     }
   }
 
   function clearSearch() {
-    chatState.searchQuery.value = ''
-    chatState.searchResults.value = []
-    chatState.isSearching.value = false
+    chatState.searchQuery.value = '';
+    chatState.searchResults.value = [];
+    chatState.isSearching.value = false;
   }
 
   function toggleWidget() {
-    chatState.isOpen.value = !chatState.isOpen.value
+    chatState.isOpen.value = !chatState.isOpen.value;
     if (!chatState.isOpen.value) {
-      clearSearch()
-      chatState.previewAttachment.value = null
-      chatState.showSearch.value = false
+      clearSearch();
+      chatState.previewAttachment.value = null;
+      chatState.showSearch.value = false;
     }
   }
 
   function goBack() {
-    chatState.currentScreen.value = 'dialogs'
-    clearSearch()
-    chatState.showSearch.value = false
-    chatState.previewAttachment.value = null
+    chatState.currentScreen.value = 'dialogs';
+    clearSearch();
+    chatState.showSearch.value = false;
+    chatState.previewAttachment.value = null;
   }
 
   function handlePreview(attachment: {
-    type: 'image' | 'video' | 'file'
-    url: string
-    name?: string
-    size?: string
+    type: 'image' | 'video' | 'file';
+    url: string;
+    name?: string;
+    size?: string;
   }) {
     if ((attachment.type === 'image' || attachment.type === 'video') && attachment.url) {
-      chatState.previewAttachment.value = attachment
+      chatState.previewAttachment.value = attachment;
     }
   }
 
-  const isSearchMode = computed(() => chatState.searchQuery.value.trim() !== '')
+  const isSearchMode = computed(() => chatState.searchQuery.value.trim() !== '');
 
   onMounted(() => {
-    const user = authService.getUser()
+    const user = authService.getUser();
     if (user && user.id) {
-      state.currentUserId = user.id
+      state.currentUserId = user.id;
     }
-  })
-function handleSearch() {
-  if (chatState.activeChat.value) {
-    chatState.searchQuery.value = ''  // Очищаем
-    // isSearchMode сработает автоматически через computed
+  });
+
+  function handleSearch() {
+    if (chatState.activeChat.value) {
+      chatState.searchQuery.value = ''; // Очищаем
+      // isSearchMode сработает автоматически через computed
+    }
   }
-}
+
   return {
     ...chatState,
     isSearchMode,
@@ -361,5 +390,5 @@ function handleSearch() {
     handlePreview,
     handleSelectUser,
     handleSearch,
-  }
+  };
 }

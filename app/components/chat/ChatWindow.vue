@@ -67,7 +67,7 @@ const replyingPreview = computed(() => {
   } else if (msg.attachments.length > 0) {
     const firstAttachment = msg.attachments[0]!;
     return {
-      text: `[Вложение: ${firstAttachment.name || firstAttachment.type.toUpperCase()}]`,
+      text: firstAttachment.name || `[Вложение: ${firstAttachment.type.toUpperCase()}]`,
       author: msg.author,
       id: msg.id,
     };
@@ -87,10 +87,8 @@ function scrollToBottom(behavior: 'smooth' | 'auto' = 'smooth') {
   });
 }
 
-// ✅ УНИВЕРСАЛЬНАЯ ПРОКРУТКА ДЛЯ REPLY + MessageSearch
 function scrollToMessage(id: number, highlightDuration: number = 3000) {
   nextTick(async () => {
-    // ✅ Ищем по разным селекторам
     const selectors = [
       `[data-message-id="${id}"]`,
       `#message-${id}`,
@@ -105,18 +103,15 @@ function scrollToMessage(id: number, highlightDuration: number = 3000) {
     }
     
     if (messageElement) {
-      // ✅ Плавная прокрутка точно по центру
       messageElement.scrollIntoView({ 
         behavior: 'smooth', 
         block: 'center',
         inline: 'nearest'
       });
       
-      // ✅ Подсветка сообщения
       highlightedMessageId.value = id;
       messageElement.classList.add('message-highlight');
       
-      // ✅ Убираем подсветку через время
       setTimeout(() => {
         messageElement?.classList.remove('message-highlight');
         highlightedMessageId.value = null;
@@ -127,9 +122,12 @@ function scrollToMessage(id: number, highlightDuration: number = 3000) {
   });
 }
 
-watch(messages, () => {
-  scrollToBottom('auto');
-}, { deep: true });
+// ✅ Автоматическая прокрутка к последнему сообщению
+watch(messages, (newMessages) => {
+  if (newMessages.length > 0) {
+    scrollToBottom('smooth'); // Плавная прокрутка к последнему сообщению
+  }
+}, { deep: true, immediate: true }); // immediate для начальной прокрутки
 
 async function sendMessage(text: string, attachments?: File[]) {
   if (!props.activeChat) return;
@@ -155,7 +153,7 @@ async function sendMessage(text: string, attachments?: File[]) {
 
 function setReply(id: number) {
   replyingTo.value = id;
-  scrollToMessage(id, 2000); // ✅ Подсветка для reply
+  scrollToMessage(id, 2000);
 }
 
 function handleSearchQuery(event: Event) {
@@ -175,7 +173,6 @@ function handleDeleteMessage(id: number) {
   emit('delete-message', id);
 }
 
-// ✅ EXPOSE для MessageSearch
 defineExpose({
   scrollToMessage
 });
@@ -183,7 +180,6 @@ defineExpose({
 
 <template>
   <div class="chat-window">
-    <!-- ✅ Поисковый хедер -->
     <div v-if="props.isSearchMode" class="search-header">
       <div class="search-input-container">
         <input 
@@ -206,32 +202,29 @@ defineExpose({
       </div>
     </div>
 
-    <!-- ✅ Контейнер сообщений -->
     <div class="messages" ref="messagesContainer">
       <div v-if="props.isSearchMode && props.searchResults.length === 0 && !props.isSearching" class="no-results">
         Ничего не найдено по запросу "{{ props.searchQuery }}"
       </div>
       
-      <!-- ✅ MessageItem с data-message-id -->
       <MessageItem
-      v-for="msg in messages"
-      :key="msg.id"
-      :id="msg.id"
-      :data-message-id="msg.id" 
-      :text="msg.text"
-      :time="msg.time"
-      :self="msg.self"
-      :author="msg.author"
-      :attachments="msg.attachments"
-      :reply="msg.reply"
-      :highlighted="highlightedMessageId === msg.id"
-      @reply="setReply"
-      @preview="handlePreview"
-      @delete="handleDeleteMessage"
-    />
+        v-for="msg in messages"
+        :key="msg.id"
+        :id="msg.id"
+        :data-message-id="msg.id"
+        :text="msg.text"
+        :time="msg.time"
+        :self="msg.self"
+        :author="msg.author"
+        :attachments="msg.attachments"
+        :reply="msg.reply"
+        :highlighted="highlightedMessageId === msg.id"
+        @reply="setReply"
+        @preview="handlePreview"
+        @delete="handleDeleteMessage"
+      />
     </div>
 
-    <!-- ✅ Input только вне поиска -->
     <MessageInput
       v-if="!props.isSearchMode"
       @send="sendMessage"
