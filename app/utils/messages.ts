@@ -206,3 +206,41 @@ export async function forwardMessage(
     throw new Error(errorMsg);
   }
 }
+
+export async function editMessage(
+  conversationId: number,
+  messageId: number,
+  content: string
+): Promise<Message> {
+  try {
+    console.log('Редактирование сообщения:', { conversationId, messageId, content });
+    const response = await authService.makeRequest<{ message: Message }>(
+      `/conversations/${conversationId}/messages/${messageId}`,
+      'PATCH',
+      { message: { content } },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    console.log('Сообщение успешно отредактировано:', response.message);
+    return response.message;
+  } catch (error: any) {
+    console.error('Ошибка при редактировании сообщения:', error.message, error.response?.data);
+    let errorMsg = 'Не удалось отредактировать сообщение';
+    if (error.response?.status === 401) {
+      errorMsg = 'Неавторизован';
+    } else if (error.response?.status === 403) {
+      errorMsg = 'Нет прав для редактирования этого сообщения';
+    } else if (error.response?.status === 404) {
+      errorMsg = 'Сообщение не найдено';
+    } else if (error.response?.status === 422) {
+      const errors = error.response.data?.errors || error.response.data?.error || error.message;
+      errorMsg = Array.isArray(errors) ? errors.join(', ') : errors;
+    }
+    console.error('Детали ошибки:', {
+      status: error.response?.status,
+      data: error.response?.data,
+      headers: error.response?.headers,
+      xRequestId: error.response?.headers?.['x-request-id'],
+    });
+    throw new Error(errorMsg);
+  }
+}

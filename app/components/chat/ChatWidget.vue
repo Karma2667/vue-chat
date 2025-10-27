@@ -30,7 +30,9 @@
         @preview="handlePreview"
         @delete-message="deleteMessage"
         @search-query="performSearch"
-        @forward-message="forwardMessage(...$event)" 
+        @forward-message="forwardMessage(...$event)"
+        @edit-message="handleEditMessage"  
+        @cancel-edit="cancelEdit"        
       />
     </transition>
 
@@ -59,16 +61,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { type ChatMessage } from '~/composables/useChat'
-import ChatToggle from './ChatToggle.vue'
-import Backdrop from './Backdrop.vue'
-import ChatPanel from './ChatPanel.vue'
-import UserSearch from './UserSearch.vue'
-import MessageSearch from './MessageSearch.vue'
-import AttachmentPreview from './AttachmentPreview.vue'
+import { computed, onMounted, ref } from 'vue';
+import { type ChatMessage } from '~/composables/useChat';
+import ChatToggle from './ChatToggle.vue';
+import Backdrop from './Backdrop.vue';
+import ChatPanel from './ChatPanel.vue';
+import UserSearch from './UserSearch.vue';
+import MessageSearch from './MessageSearch.vue';
+import AttachmentPreview from './AttachmentPreview.vue';
 
-import { useChat } from '~/composables/useChat'
+import { useChat } from '~/composables/useChat';
 
 const {
   isOpen,
@@ -92,45 +94,47 @@ const {
   handlePreview,
   handleSelectUser,
   clearSearch,
-  forwardMessage, // ✅ Добавляем forwardMessage
-} = useChat()
+  forwardMessage,
+  handleEditMessage,  // ✅ Добавляем handleEditMessage
+  cancelEdit,        // ✅ Добавляем cancelEdit
+} = useChat();
 
-const messageSearchVisible = ref(false)
+const messageSearchVisible = ref(false);
 
 function handleSearch() {
-  console.log('🔍 Поиск сообщений активирован!')
+  console.log('🔍 Поиск сообщений активирован!');
   if (activeChat.value) {
-    messageSearchVisible.value = true
+    messageSearchVisible.value = true;
   }
 }
 
 function onMessageSelect(message: ChatMessage) {
-  console.log('📄 Выбрано сообщение:', message.id)
+  console.log('📄 Выбрано сообщение:', message.id);
   
-  const element = document.querySelector(`[data-message-id="${message.id}"]`)
+  const element = document.querySelector(`[data-message-id="${message.id}"]`);
   if (element) {
     element.scrollIntoView({ 
       behavior: 'smooth', 
       block: 'center' 
-    })
+    });
     
-    element.classList.add('message-highlight')
+    element.classList.add('message-highlight');
     setTimeout(() => {
-      element.classList.remove('message-highlight')
-    }, 3000)
+      element.classList.remove('message-highlight');
+    }, 3000);
   }
   
-  messageSearchVisible.value = false
+  messageSearchVisible.value = false;
 }
 
 const widgetClasses = computed(() => ({
   'is-open': isOpen.value,
-  'panel-inited': true, 
-}))
+  'panel-inited': true,
+}));
 
 onMounted(() => {
-  loadConversations()
-})
+  loadConversations();
+});
 </script>
 
 <style scoped>

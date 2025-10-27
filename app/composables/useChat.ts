@@ -2,7 +2,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { toRefs } from 'vue';
 import { fetchConversations, type Conversation } from '~/utils/conversations';
 import { createPrivateChat } from '~/utils/createPrivateChat';
-import { sendMessage, fetchMessages, getAttachmentUrl, searchMessages, forwardMessage as forwardMessageAPI, type Attachment, type Message } from '~/utils/messages';
+import { sendMessage, fetchMessages, getAttachmentUrl, searchMessages, forwardMessage as forwardMessageAPI, editMessage, type Attachment, type Message } from '~/utils/messages';
 import { authService } from '~/utils/auth';
 
 export interface Dialog {
@@ -25,6 +25,7 @@ export interface ChatMessage {
     name?: string;
     size?: string;
   }>;
+  edited?: boolean;
 }
 
 interface ChatState {
@@ -44,6 +45,7 @@ interface ChatState {
   searchQuery: string;
   searchResults: ChatMessage[];
   isSearching: boolean;
+  editingMessage: { id: number; text: string } | null; // ✅ Состояние редактируемого сообщения
 }
 
 export function useChat() {
@@ -59,6 +61,7 @@ export function useChat() {
     searchQuery: '',
     searchResults: [],
     isSearching: false,
+    editingMessage: null,
   });
 
   const chatState = toRefs(state);
@@ -99,6 +102,7 @@ export function useChat() {
   async function openChat(dialog: Dialog) {
     chatState.activeChat.value = dialog;
     chatState.currentScreen.value = 'chat';
+    chatState.editingMessage.value = null; // ✅ Очищаем редактирование при открытии чата
 
     try {
       const messages = await fetchMessages(dialog.id);
@@ -129,6 +133,7 @@ export function useChat() {
             reply: null,
             reply_to: typeof msg.reply_to === 'object' && msg.reply_to ? msg.reply_to.id : msg.reply_to,
             attachments,
+            edited: msg.edited || false,
           };
 
           return tempMsg;
@@ -146,6 +151,7 @@ export function useChat() {
                 author: tempMessages.find((m: any) => m.id === reply_to)?.author || 'Unknown',
               }
             : null,
+          edited: msg.edited || false,
         } as ChatMessage;
       });
     } catch (error: any) {
@@ -212,6 +218,7 @@ export function useChat() {
             self: state.currentUserId !== null && msg.user_id === state.currentUserId,
             reply: null,
             attachments,
+            edited: msg.edited || false,
           } as ChatMessage;
         })
       );
@@ -227,7 +234,7 @@ export function useChat() {
 
   async function forwardMessage(conversationId: number, messageId: number, conversationIds: number[]) {
     try {
-      const response = await forwardMessageAPI(conversationId, messageId, conversationIds); // ✅ Use renamed import
+      const response = await forwardMessageAPI(conversationId, messageId, conversationIds);
       if (response.success) {
         console.log('Сообщение успешно переслано:', response.message);
         await loadConversations();
@@ -236,7 +243,62 @@ export function useChat() {
       console.error('Ошибка пересылки:', error.message);
       alert('Ошибка пересылки: ' + (error.message || 'Неизвестная ошибка'));
     }
-}
+  }
+
+  async function handleEditMessage([conversationId, messageId, content]: [number, number, string]) {
+    try {
+      const updatedMessage = await editMessage(conversationId, messageId, content);
+
+      const newText = updatedMessage.content ?? content ?? '';
+      if (!chatState.chats.value[conversationId]) {
+        chatState.chats.value[conversationId] = [];
+        console.warn(`Чат ${conversationId} не был загружен. Инициализируем пустым массивом.`);
+      }
+
+      chatState.chats.value[conversationId] = chatState.chats.value[conversationId].map((msg) =>
+        msg.id === messageId
+          ? {
+              ...msg,
+              text: newText,
+              edited: true,
+              time: updatedMessage.updated_at
+                ? new Date(updatedMessage.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : msg.time,
+            }
+          : msg
+      );
+
+      console.log('✅ Сообщение успешно отредактировано:', {
+        messageId,
+        newText,
+        edited: true,
+      });
+
+      chatState.editingMessage.value = null; // ✅ Очищаем редактирование после успешного редактирования
+    } catch (error: any) {
+      console.error('❌ Ошибка при редактировании сообщения:', {
+        conversationId,
+        messageId,
+        content,
+        error: error.message,
+        status: error.response?.status,
+        details: error.response?.data,
+      });
+      alert(
+        `Ошибка редактирования: ${
+          error.response?.status === 403
+            ? 'Нет прав для редактирования этого сообщения'
+            : error.response?.status === 404
+              ? 'Сообщение не найдено'
+              : error.message || 'Неизвестная ошибка'
+        }`
+      );
+    }
+  }
+
+  function cancelEdit() {
+    chatState.editingMessage.value = null; // ✅ Очищаем состояние редактирования
+  }
 
   async function handleSelectUser(user: { id: number; username: string }) {
     const existingDialog = chatState.dialogs.value.find(
@@ -324,6 +386,7 @@ export function useChat() {
               },
             ]
           : [],
+        edited: response.edited || false,
       };
 
       if (!chatState.chats.value[conversationId]) {
@@ -331,6 +394,7 @@ export function useChat() {
       }
       chatState.chats.value[conversationId].push(newMessage);
       state.chats = { ...state.chats };
+      chatState.editingMessage.value = null; // ✅ Очищаем редактирование после отправки
     } catch (error: any) {
       console.error('Ошибка отправки:', error);
       alert('Ошибка отправки: ' + error.message);
@@ -349,6 +413,7 @@ export function useChat() {
       clearSearch();
       chatState.previewAttachment.value = null;
       chatState.showSearch.value = false;
+      chatState.editingMessage.value = null; // ✅ Очищаем редактирование при закрытии
     }
   }
 
@@ -357,6 +422,7 @@ export function useChat() {
     clearSearch();
     chatState.showSearch.value = false;
     chatState.previewAttachment.value = null;
+    chatState.editingMessage.value = null; // ✅ Очищаем редактирование при возврате
   }
 
   function handlePreview(attachment: {
@@ -399,6 +465,8 @@ export function useChat() {
     handlePreview,
     handleSelectUser,
     handleSearch,
-    forwardMessage, // ✅ Добавляем forwardMessage
+    forwardMessage,
+    handleEditMessage,
+    cancelEdit, // ✅ Добавляем в возвращаемый объект
   };
 }

@@ -1,13 +1,9 @@
 <script setup lang="ts">
 import { defineProps, defineEmits, ref } from 'vue';
-import ReactionPicker from './ReactionPicker.vue';
 import {
-  PhSmiley,
   PhArrowBendLeftUp,
   PhPaperPlaneTilt,
   PhPencilSimple,
-  PhFlag,
-  PhPushPin,
   PhTrashSimple,
 } from '@phosphor-icons/vue';
 
@@ -19,8 +15,9 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'reaction-selected', emoji: string): void;
   (e: 'reply'): void;
-  (e: 'forward'): void; // ✅ Новый эвент для пересылки
+  (e: 'forward'): void; 
   (e: 'delete'): void;
+  (e: 'edit'): void;
 }>();
 
 const showReactions = ref(false);
@@ -39,23 +36,20 @@ function reply() {
 }
 
 function forward() {
-  emit('forward'); // ✅ Эмитим пересылку
+  emit('forward'); 
 }
 
 function deleteMessage() {
   emit('delete');
 }
+
+function editMessage() {
+  emit('edit');
+}
 </script>
 
 <template>
   <div class="actions" :class="{ self: props.self }">
-    <!-- Эмоджи / реакции -->
-    <PhSmiley
-      size="20"
-      weight="regular"
-      title="Реакции"
-      @click.stop="togglePicker"
-    />
 
     <!-- Ответ -->
     <PhArrowBendLeftUp
@@ -91,29 +85,7 @@ function deleteMessage() {
       size="18"
       weight="regular"
       title="Редактировать"
-    />
-
-    <!-- Пожаловаться -->
-    <PhFlag
-      v-else
-      size="18"
-      weight="regular"
-      class="small-icon"
-      title="Пожаловаться"
-    />
-
-    <!-- Закрепить -->
-    <PhPushPin
-      size="18"
-      weight="regular"
-      title="Закрепить"
-    />
-
-    <!-- Reaction Picker -->
-    <ReactionPicker
-      v-if="showReactions"
-      @select="selectReaction"
-      :existing-reactions="props.existingReactions"
+      @click="editMessage"
     />
   </div>
 </template>

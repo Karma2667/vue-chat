@@ -20,6 +20,7 @@ interface ChatMessage {
   self: boolean;
   reply: { id: number; author?: string; text: string } | null;
   attachments: Attachment[];
+  edited?: boolean; // ✅ Добавляем поле для метки "отредактировано"
 }
 
 interface Dialog {
@@ -50,6 +51,8 @@ const emit = defineEmits<{
   (e: 'preview', attachment: Attachment): void;
   (e: 'delete-message', messageId: number): void;
   (e: 'forward-message', payload: [number, number, number[]]): void;
+  (e: 'edit-message', payload: [number, number, string]): void; // ✅ Добавляем событие редактирования
+  (e: 'cancel-edit'): void; // ✅ Добавляем событие отмены редактирования
 }>();
 
 const forwardDialogs = ref<number[]>([]);
@@ -126,7 +129,9 @@ function toggleDialogSelection(dialogId: number) {
           @preview="emit('preview', $event)"
           @delete-message="emit('delete-message', $event)"
           @search-query="emit('search-query', $event)"
-          @forward-message="openForwardModal($event[1])" 
+          @forward-message="openForwardModal($event[1])"
+          @edit-message="emit('edit-message', $event)" 
+          @cancel-edit="emit('cancel-edit')"
         />
       </div>
     </transition>

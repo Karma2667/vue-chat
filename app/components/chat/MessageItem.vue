@@ -16,6 +16,7 @@ const props = defineProps<{
     size?: string;
   }[];
   reply?: { id: number; author?: string; text: string } | null;
+  edited?: boolean; // ✅ Добавляем edited для согласованности
 }>();
 
 const emit = defineEmits<{
@@ -25,6 +26,7 @@ const emit = defineEmits<{
   (e: 'scroll-to-reply', id: number): void;
   (e: 'delete', id: number): void;
   (e: 'forward', id: number): void;
+  (e: 'edit', id: number, text: string): void; // ✅ Добавляем edit
 }>();
 
 const reactions = ref<string[]>([]);
@@ -40,7 +42,7 @@ function onReactionSelected(emoji: string) {
 }
 
 function handleReply() {
-  console.log('Reply triggered for message ID:', props.id);
+  console.log('📩 Reply triggered for message ID:', props.id);
   emit('reply', props.id);
 }
 
@@ -53,18 +55,23 @@ function handlePreview(attachment: { type: 'image' | 'video' | 'file'; url: stri
 }
 
 function handleScrollToReply(id: number) {
-  console.log('Scroll to reply ID:', id);
+  console.log('📜 Scroll to reply ID:', id);
   emit('scroll-to-reply', id);
 }
 
 function handleDelete() {
-  console.log('Delete message ID:', props.id);
+  console.log('🗑️ Delete message ID:', props.id);
   emit('delete', props.id);
 }
 
 function handleForward() {
-  console.log('Forward message ID:', props.id);
+  console.log('📤 Forward message ID:', props.id);
   emit('forward', props.id);
+}
+
+function handleEdit(id: number, text: string) {
+  console.log('🖌️ Edit message ID:', id, text);
+  emit('edit', id, text);
 }
 </script>
 
@@ -78,11 +85,13 @@ function handleForward() {
       :self="props.self"
       :reactions="reactions"
       :reply="props.reply"
+      :edited="props.edited"
       @reaction-selected="onReactionSelected"
       @reply="handleReply"
       @scroll-to-reply="handleScrollToReply"
       @delete="handleDelete"
       @forward="handleForward"
+      @edit="handleEdit"
     />
 
     <div v-if="props.attachments?.length" class="attachments">
@@ -121,5 +130,6 @@ function handleForward() {
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 0.4rem;
+  max-width: 300px;
 }
 </style>

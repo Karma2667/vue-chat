@@ -14,7 +14,8 @@ const props = defineProps({
     type: Object as PropType<{ id: number; author?: string; text: string } | null>,
     default: null,
   },
-  id: { type: Number, required: true }, // ✅ Добавляем id сообщения
+  id: { type: Number, required: true },
+  edited: { type: Boolean, default: false }, // ✅ Добавляем проп для метки "отредактировано"
 });
 
 const emit = defineEmits<{
@@ -22,7 +23,8 @@ const emit = defineEmits<{
   (e: 'reply'): void;
   (e: 'scroll-to-reply', id: number): void;
   (e: 'delete'): void;
-  (e: 'forward'): void; // ✅ Добавляем событие forward
+  (e: 'forward'): void;
+  (e: 'edit', id: number, text: string): void; // ✅ Добавляем событие для редактирования
 }>();
 
 const hover = ref(false);
@@ -44,7 +46,11 @@ function handleDelete() {
 }
 
 function handleForward() {
-  emit('forward'); // ✅ Эмитим событие forward
+  emit('forward');
+}
+
+function handleEdit() {
+  emit('edit', props.id, props.text); // ✅ Эмитим событие редактирования
 }
 </script>
 
@@ -59,7 +65,8 @@ function handleForward() {
           @reaction-selected="addReaction"
           @reply="reply"
           @delete="handleDelete"
-          @forward="handleForward" 
+          @forward="handleForward"
+          @edit="handleEdit" 
         />
       </div>
     </div>
@@ -74,8 +81,11 @@ function handleForward() {
       @scroll-to-reply="handleScrollToReply"
     />
 
-    <!-- Основной текст -->
-    <p class="text">{{ props.text }}</p>
+    <!-- Основной текст и метка "отредактировано" -->
+    <div class="text-row">
+      <p class="text">{{ props.text }}</p>
+      <span v-if="props.edited" class="edited-label">(отредактировано)</span>
+    </div>
 
     <!-- Реакции -->
     <div v-if="props.reactions.length" class="reactions-row">
@@ -115,11 +125,23 @@ function handleForward() {
   margin-left: auto;
 }
 
+.text-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
 .text {
   margin: 0;
   word-wrap: break-word;
   white-space: pre-wrap;
   line-height: 1.4;
+}
+
+.edited-label {
+  font-size: 0.6875rem;
+  color: #999;
+  font-style: italic;
 }
 
 .reactions-row {
@@ -139,7 +161,11 @@ function handleForward() {
   color: #999;
   align-self: flex-end;
 }
+
 .time.self {
   color: #fff !important;
+}
+.self .edited-label {
+  color: #fff; 
 }
 </style>

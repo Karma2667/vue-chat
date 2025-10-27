@@ -11,6 +11,7 @@ interface ChatMessage {
   self: boolean;
   reply: { id: number; author?: string; text: string } | null;
   attachments: Array<{ type: 'image' | 'video' | 'file'; url: string; name?: string; size?: string }>;
+  edited?: boolean;
 }
 
 interface Dialog {
@@ -35,11 +36,14 @@ const emit = defineEmits<{
   (e: 'delete-message', id: number): void;
   (e: 'search-query', query: string): void;
   (e: 'forward-message', payload: [number, number, number[]]): void;
+  (e: 'edit-message', payload: [number, number, string]): void;
+  (e: 'cancel-edit'): void;
 }>();
 
 const messagesContainer = ref<HTMLDivElement | null>(null);
 const replyingTo = ref<number | undefined>(undefined);
 const highlightedMessageId = ref<number | null>(null);
+const editingMessage = ref<{ id: number; text: string } | null>(null);
 
 const messages = computed(() => {
   if (props.isSearchMode) {
@@ -56,14 +60,9 @@ const replyingMessage = computed(() => {
 
 const replyingPreview = computed(() => {
   if (!replyingTo.value || !replyingMessage.value) return null;
-  
   const msg = replyingMessage.value;
   if (msg.text.trim()) {
-    return {
-      text: msg.text,
-      author: msg.author,
-      id: msg.id,
-    };
+    return { text: msg.text, author: msg.author, id: msg.id };
   } else if (msg.attachments.length > 0) {
     const firstAttachment = msg.attachments[0]!;
     return {
@@ -93,24 +92,15 @@ function scrollToMessage(id: number, highlightDuration: number = 3000) {
       `#message-${id}`,
       `.message-item[data-id="${id}"]`
     ];
-    
     let messageElement: Element | null = null;
-    
     for (const selector of selectors) {
       messageElement = document.querySelector(selector);
       if (messageElement) break;
     }
-    
     if (messageElement) {
-      messageElement.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'center',
-        inline: 'nearest'
-      });
-      
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
       highlightedMessageId.value = id;
       messageElement.classList.add('message-highlight');
-      
       setTimeout(() => {
         messageElement?.classList.remove('message-highlight');
         highlightedMessageId.value = null;
@@ -129,21 +119,16 @@ watch(messages, (newMessages) => {
 
 async function sendMessage(text: string, attachments?: File[]) {
   if (!props.activeChat) return;
-
   const hasText = text.trim().length > 0;
   const hasAttachments = attachments && attachments.length > 0;
-  
   if (!hasText && !hasAttachments) return;
-
   let attachment: File | undefined = undefined;
   if (attachments && attachments.length > 0 && attachments[0]) {
     attachment = attachments[0];
   }
-
   const content = text.trim() || null;
   const conversationId = props.activeChat.id;
   const replyToMessageId = replyingTo.value;
-
   emit('send-message', [conversationId, content, replyToMessageId, attachment] as const);
   replyingTo.value = undefined;
   scrollToBottom('smooth');
@@ -151,7 +136,21 @@ async function sendMessage(text: string, attachments?: File[]) {
 
 function setReply(id: number) {
   replyingTo.value = id;
+  editingMessage.value = null;
   scrollToMessage(id, 2000);
+}
+
+function setEdit(id: number, text: string) {
+  console.log('🖌️ setEdit:', { id, text });
+  editingMessage.value = { id, text };
+  replyingTo.value = undefined;
+  scrollToMessage(id, 2000);
+}
+
+function cancelEdit() {
+  console.log('🚫 cancelEdit');
+  editingMessage.value = null;
+  emit('cancel-edit');
 }
 
 function handleSearchQuery(event: Event) {
@@ -173,13 +172,16 @@ function handleDeleteMessage(id: number) {
 
 function handleForwardMessage(messageId: number) {
   if (!props.activeChat) return;
-  // Открываем модальное окно через родительский компонент
   emit('forward-message', [props.activeChat.id, messageId, []]);
 }
 
-defineExpose({
-  scrollToMessage
-});
+function handleEditMessage(id: number, text: string) {
+  console.log('📝 ChatWindow handleEditMessage:', { id, text });
+  if (!props.activeChat) return;
+  emit('edit-message', [props.activeChat.id, id, text]);
+}
+
+defineExpose({ scrollToMessage });
 </script>
 
 <template>
@@ -222,27 +224,56 @@ defineExpose({
         :author="msg.author"
         :attachments="msg.attachments"
         :reply="msg.reply"
+        :edited="msg.edited"
         :highlighted="highlightedMessageId === msg.id"
         @reply="setReply"
         @preview="handlePreview"
         @delete="handleDeleteMessage"
         @forward="handleForwardMessage"
+        @edit="setEdit" 
       />
     </div>
 
     <MessageInput
       v-if="!props.isSearchMode"
       @send="sendMessage"
+      @cancel-reply="replyingTo = undefined"
+      @cancel-edit="cancelEdit"
+      @scroll-to-reply="scrollToMessage"
+      @edit="handleEditMessage" 
       :replying-text="replyingPreview?.text || ''"
       :replying-author="replyingPreview?.author || ''"
       :replying-id="replyingPreview?.id"
-      @cancel-reply="replyingTo = undefined"
+      :editing-text="editingMessage?.text"
+      :editing-id="editingMessage?.id"
     />
   </div>
 </template>
 
 <style scoped>
-/* Стили остаются без изменений */
+.chat-window {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #f1f5f9;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  scroll-behavior: smooth;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
 .search-header {
   padding: 0.75rem 1rem;
   background: #f8fafc;
@@ -302,23 +333,6 @@ defineExpose({
   text-align: center;
   color: #64748b;
   font-style: italic;
-}
-
-.chat-window {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: #f1f5f9;
-}
-
-.messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 0.5rem 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  scroll-behavior: smooth;
 }
 
 .message-highlight {

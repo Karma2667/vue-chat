@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, defineProps, defineEmits, nextTick } from 'vue';
+import { ref, defineProps, defineEmits, nextTick, watch } from 'vue';
 import EmojiPicker from './EmojiPicker.vue';
 import AttachmentMessage from './AttachmentMessage.vue';
 import ReplyMessage from './ReplyMessage.vue';
@@ -8,6 +8,8 @@ const props = defineProps<{
   replyingText?: string;
   replyingAuthor?: string;
   replyingId?: number;
+  editingText?: string;
+  editingId?: number;
 }>();
 
 const emit = defineEmits<{
@@ -16,8 +18,13 @@ const emit = defineEmits<{
   (e: 'video'): void;
   (e: 'cancel-reply'): void;
   (e: 'scroll-to-reply', id: number): void;
+  (e: 'cancel-edit'): void;
+  (e: 'edit', id: number, message: string): void;
 }>();
 
+// ========================
+// State
+// ========================
 const message = ref('');
 const showEmojiPicker = ref(false);
 const attachments = ref<
@@ -26,19 +33,51 @@ const attachments = ref<
 const files = ref<File[]>([]);
 const inputRef = ref<HTMLInputElement | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
+const isEditing = ref(false);
 
-function sendMessage() {
+// ========================
+// Watchers
+// ========================
+watch(
+  () => props.editingText,
+  (newText) => {
+    if (newText !== undefined) {
+      message.value = newText;
+      nextTick(() => inputRef.value?.focus());
+    }
+  }
+);
+
+// ========================
+// Methods
+// ========================
+async function sendMessage() {
   const text = message.value.trim();
-  if (!text && files.value.length === 0) return;
+  const hasFiles = files.value.length > 0;
 
-  // ✅ ПРОВЕРКА НА СУЩЕСТВОВАНИЕ ПЕРВОГО ФАЙЛА
+  if (!text && !hasFiles) return;
+
   let content = text;
-  if (!text && files.value.length > 0) {
-    content = files.value[0]?.name || 'Вложение'; // Используем опциональную цепочку
+  if (!text && hasFiles) {
+    content = files.value[0]?.name || 'Вложение';
   }
 
-  emit('send', content, files.value);
+  if (props.editingId !== undefined) {
+    isEditing.value = true;
+    try {
+      emit('edit', props.editingId, content);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    } finally {
+      isEditing.value = false;
+    }
+  } else {
+    emit('send', content, files.value);
+  }
 
+  clearInput();
+}
+
+function clearInput() {
   message.value = '';
   attachments.value.forEach((a) => URL.revokeObjectURL(a.url));
   attachments.value = [];
@@ -88,7 +127,6 @@ function handleFiles(event: Event) {
 function removeAttachment(index: number) {
   const item = attachments.value[index];
   if (!item) return;
-
   URL.revokeObjectURL(item.url);
   attachments.value.splice(index, 1);
   files.value.splice(index, 1);
@@ -98,6 +136,11 @@ function cancelReply() {
   emit('cancel-reply');
 }
 
+function cancelEdit() {
+  emit('cancel-edit');
+  message.value = '';
+}
+
 function handleScrollToReply(id: number) {
   emit('scroll-to-reply', id);
 }
@@ -105,6 +148,7 @@ function handleScrollToReply(id: number) {
 
 <template>
   <div class="message-input">
+    <!-- Reply block -->
     <div v-if="props.replyingText" class="replying-to">
       <ReplyMessage
         :id="props.replyingId!"
@@ -117,20 +161,31 @@ function handleScrollToReply(id: number) {
       </button>
     </div>
 
+    <!-- Editing block -->
+    <div v-if="props.editingId !== undefined" class="editing-to">
+      <span>Редактирование сообщения</span>
+      <button class="cancel-btn" @click="cancelEdit">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <!-- File upload -->
     <button class="icon-btn" @click="openFileDialog">
       <i class="fas fa-paperclip"></i>
     </button>
     <input type="file" multiple hidden ref="fileInput" @change="handleFiles" />
 
+    <!-- Text input -->
     <input
       ref="inputRef"
       v-model="message"
       @keyup.enter="sendMessage"
       type="text"
-      placeholder="Write message"
+      :placeholder="props.editingId !== undefined ? 'Редактировать сообщение...' : 'Напишите сообщение...'"
       class="input"
     />
 
+    <!-- Right icons -->
     <div class="right-icons">
       <button class="icon-btn"><i class="fas fa-font"></i></button>
       <button class="icon-btn" @click="toggleEmojiPicker">
@@ -139,15 +194,22 @@ function handleScrollToReply(id: number) {
       <button class="icon-btn" @click="emit('video')">
         <i class="fas fa-video"></i>
       </button>
-      <button class="icon-btn send-btn" @click="sendMessage">
-        <i class="fas fa-paper-plane"></i>
+      <button
+        class="icon-btn send-btn"
+        @click="sendMessage"
+        :disabled="isEditing || (!message.trim() && files.length === 0)"
+      >
+        <i v-if="isEditing" class="fas fa-spinner fa-spin"></i>
+        <i v-else class="fas fa-paper-plane"></i>
       </button>
     </div>
 
+    <!-- Emoji picker -->
     <transition name="fade">
       <EmojiPicker v-if="showEmojiPicker" @select="insertEmoji" />
     </transition>
 
+    <!-- Attachments preview -->
     <transition-group name="fade" tag="div" class="attachments-preview">
       <div v-for="(a, index) in attachments" :key="a.url" class="attachment-wrapper">
         <AttachmentMessage :attachment="a" />
@@ -159,7 +221,6 @@ function handleScrollToReply(id: number) {
   </div>
 </template>
 
-
 <style scoped>
 .message-input {
   position: relative;
@@ -170,9 +231,13 @@ function handleScrollToReply(id: number) {
   border-top: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.04);
   flex-wrap: wrap;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
-.replying-to {
+.replying-to,
+.editing-to {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -202,6 +267,13 @@ function handleScrollToReply(id: number) {
   background: var(--bg-second, #f6f7f9);
   color: var(--tx-first, #222);
   margin: 0 0.5rem;
+  max-width: 100%;
+}
+
+.right-icons {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .icon-btn {
@@ -220,12 +292,6 @@ function handleScrollToReply(id: number) {
   color: var(--tx-first, #000);
 }
 
-.right-icons {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
 .send-btn {
   color: #0078ff;
 }
@@ -235,12 +301,20 @@ function handleScrollToReply(id: number) {
   gap: 8px;
   margin-top: 6px;
   width: 100%;
-  padding-left: 2rem;
+  max-width: 100%;
+  overflow-x: hidden;
   flex-wrap: wrap;
 }
 
 .attachment-wrapper {
   position: relative;
+  max-width: 100%;
+}
+
+.attachment-wrapper img,
+.attachment-wrapper video {
+  max-width: 100%;
+  height: auto;
 }
 
 .remove-btn {
