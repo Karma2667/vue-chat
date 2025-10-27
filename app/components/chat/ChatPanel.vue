@@ -4,6 +4,7 @@ import DialogList from './DialogList.vue';
 import ChatWindow from './ChatWindow.vue';
 import ChatListHeader from './ChatListHeader.vue';
 import ChatHeader from './ChatHeader.vue';
+import { type Conversation } from '@/utils/conversations'; // Импортируем тип Conversation
 
 interface Attachment {
   type: 'image' | 'video' | 'file';
@@ -20,7 +21,7 @@ interface ChatMessage {
   self: boolean;
   reply: { id: number; author?: string; text: string } | null;
   attachments: Attachment[];
-  edited?: boolean; // ✅ Добавляем поле для метки "отредактировано"
+  edited?: boolean;
 }
 
 interface Dialog {
@@ -51,13 +52,40 @@ const emit = defineEmits<{
   (e: 'preview', attachment: Attachment): void;
   (e: 'delete-message', messageId: number): void;
   (e: 'forward-message', payload: [number, number, number[]]): void;
-  (e: 'edit-message', payload: [number, number, string]): void; // ✅ Добавляем событие редактирования
-  (e: 'cancel-edit'): void; // ✅ Добавляем событие отмены редактирования
+  (e: 'edit-message', payload: [number, number, string]): void;
+  (e: 'cancel-edit'): void;
+  (e: 'add-user'): void; // Добавляем событие add-user
+  (e: 'rename-chat'): void; // Добавляем событие rename-chat
 }>();
 
 const forwardDialogs = ref<number[]>([]);
 const isForwardModalOpen = ref(false);
 const messageToForward = ref<number | null>(null);
+
+// Преобразуем Dialog в Conversation для передачи в ChatHeader
+const activeConversation = computed<Conversation | null>(() => {
+  if (!props.activeChat) return null;
+  return {
+    id: props.activeChat.id,
+    name: props.activeChat.from,
+    conversation_type: props.activeChat.type || 'private', // Предполагаем private по умолчанию
+    owner_id: null,
+    created_at: '',
+    updated_at: '',
+    messages_count: 0,
+    participants_count: 0,
+    is_owner: false,
+    participants: [],
+    last_message_preview: props.activeChat.lastMessage
+      ? {
+          content: props.activeChat.lastMessage.content,
+          created_at: props.activeChat.lastMessage.created_at,
+          user_id: 0,
+          username: props.activeChat.lastMessage.username,
+        }
+      : undefined,
+  };
+});
 
 const selectedDialogs = computed(() => forwardDialogs.value);
 
@@ -89,6 +117,17 @@ function toggleDialogSelection(dialogId: number) {
     forwardDialogs.value = forwardDialogs.value.filter(id => id !== dialogId);
   }
 }
+
+// Обработчики для add-user и rename-chat
+function handleAddUser() {
+  console.log('Открыть модальное окно для добавления пользователя');
+  emit('add-user');
+}
+
+function handleRenameChat() {
+  console.log('Открыть модальное окно для переименования чата');
+  emit('rename-chat');
+}
 </script>
 
 <template>
@@ -102,10 +141,13 @@ function toggleDialogSelection(dialogId: number) {
         <ChatHeader
           v-else
           :title="props.activeChat?.from || 'Чат'"
+          :conversation="activeConversation!"
           :is-search-mode="props.isSearchMode"
           @go-back="emit('go-back')"
           @search="emit('search')"
           @search-query="emit('search-query', $event)"
+          @add-user="handleAddUser"
+          @rename-chat="handleRenameChat"
         />
       </div>
     </transition>
@@ -130,7 +172,7 @@ function toggleDialogSelection(dialogId: number) {
           @delete-message="emit('delete-message', $event)"
           @search-query="emit('search-query', $event)"
           @forward-message="openForwardModal($event[1])"
-          @edit-message="emit('edit-message', $event)" 
+          @edit-message="emit('edit-message', $event)"
           @cancel-edit="emit('cancel-edit')"
         />
       </div>

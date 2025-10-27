@@ -1,56 +1,88 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch } from 'vue';
+import { type Conversation } from '@/utils/conversations';
+import { authService } from '../../utils/auth'; // Путь к authService
 
 const props = defineProps<{
-  title: string
-  isSearchMode?: boolean  // ✅ true = инпут поиска
-}>()
+  title: string;
+  conversation: Conversation;
+  isSearchMode?: boolean;
+}>();
 
 const emit = defineEmits<{
-  (e: 'go-back'): void
-  (e: 'search'): void
-  (e: 'search-query', query: string): void
-  (e: 'profile'): void
-  (e: 'block'): void
-  (e: 'report'): void
-}>()
+  (e: 'go-back'): void;
+  (e: 'search'): void;
+  (e: 'search-query', query: string): void;
+  (e: 'add-user'): void;
+  (e: 'rename-chat'): void;
+}>();
 
-const isMenuOpen = ref(false)
-const searchQuery = ref('')
+const isMenuOpen = ref(false);
+const searchQuery = ref('');
 
-// ✅ При активации поиска
+// Отслеживание режима поиска
 watch(() => props.isSearchMode, (isSearch) => {
   if (isSearch) {
-    isMenuOpen.value = false
-    searchQuery.value = ''
+    isMenuOpen.value = false;
+    searchQuery.value = '';
   }
-})
+});
 
 function toggleMenu() {
   if (!props.isSearchMode) {
-    isMenuOpen.value = !isMenuOpen.value
+    isMenuOpen.value = !isMenuOpen.value;
   }
 }
 
 function openSearch() {
-  emit('search')
-  isMenuOpen.value = false
+  emit('search');
+  isMenuOpen.value = false;
 }
 
 function handleSearchInput(event: Event) {
-  const target = event.target as HTMLInputElement
-  emit('search-query', target.value)
+  const target = event.target as HTMLInputElement;
+  emit('search-query', target.value);
 }
 
 function clearSearch() {
-  searchQuery.value = ''
-  emit('search-query', '')
+  searchQuery.value = '';
+  emit('search-query', '');
+}
+
+// Функция удаления диалога с обработкой ошибок
+async function deleteConversation() {
+  try {
+    const response = await authService.makeRequest<{ success: boolean; message: string }>(
+      `/api/v1/conversations/${props.conversation.id}`,
+      'DELETE'
+    );
+    isMenuOpen.value = false;
+    emit('go-back');
+    alert(response.message || 'Чат успешно удален');
+  } catch (error: any) {
+    console.error('Ошибка при удалении чата:', error);
+    console.log('Полный ответ сервера:', error.response?.data);
+    const status = error.response?.status;
+    let errorMessage = 'Не удалось удалить чат';
+
+    if (status === 401) {
+      errorMessage = 'Вы не авторизованы. Пожалуйста, войдите в аккаунт';
+    } else if (status === 403) {
+      errorMessage = 'У вас нет прав для удаления этого чата';
+    } else if (status === 404) {
+      errorMessage = 'Чат не найден';
+    } else if (status === 422) {
+      errorMessage = error.response?.data?.error || 'Невозможно удалить чат по неизвестной причине';
+    }
+
+    alert(errorMessage);
+  }
 }
 </script>
 
 <template>
   <div class="chat-header">
-    <!-- ✅ РЕЖИМ ПОИСКА: инпут -->
+    <!-- РЕЖИМ ПОИСКА -->
     <div v-if="props.isSearchMode" class="search-mode">
       <button class="back-button" @click="emit('go-back')">
         <i class="fas fa-arrow-left"></i>
@@ -67,7 +99,7 @@ function clearSearch() {
       </button>
     </div>
 
-    <!-- ✅ ОБЫЧНЫЙ ХЕДЕР -->
+    <!-- ОБЫЧНЫЙ ХЕДЕР -->
     <div v-else class="normal-mode">
       <button class="back-button" @click="emit('go-back')">
         ←
@@ -86,14 +118,14 @@ function clearSearch() {
             <button @click="openSearch">
               <i class="fas fa-search"></i> Поиск сообщений
             </button>
-            <button @click="emit('profile')">
-              <i class="fas fa-user"></i> Профиль
+            <button v-if="props.conversation.conversation_type === 'group'" @click="deleteConversation">
+              <i class="fas fa-trash"></i> Удалить диалог
             </button>
-            <button @click="emit('block')">
-              <i class="fas fa-ban"></i> Заблокировать
+            <button v-if="props.conversation.conversation_type === 'private'" @click="emit('add-user')">
+              <i class="fas fa-user-plus"></i> Добавить пользователя
             </button>
-            <button @click="emit('report')">
-              <i class="fas fa-flag"></i> Пожаловаться
+            <button v-if="props.conversation.conversation_type === 'group'" @click="emit('rename-chat')">
+              <i class="fas fa-edit"></i> Переименовать чат
             </button>
           </div>
         </transition>
@@ -113,7 +145,6 @@ function clearSearch() {
   z-index: 10001;
 }
 
-/* ✅ РЕЖИМ ПОИСКА */
 .search-mode {
   display: flex;
   align-items: center;
@@ -175,7 +206,6 @@ function clearSearch() {
   color: #475569;
 }
 
-/* ✅ ОБЫЧНЫЙ РЕЖИМ */
 .normal-mode {
   display: flex;
   align-items: center;
@@ -215,7 +245,6 @@ function clearSearch() {
   cursor: not-allowed;
 }
 
-/* МЕНЮ */
 .context-menu {
   position: fixed;
   top: 4rem;
@@ -253,7 +282,6 @@ function clearSearch() {
   background: rgba(0, 0, 0, 0.1);
 }
 
-/* АНИМАЦИЯ */
 .menu-enter-active,
 .menu-leave-active {
   transition: all 0.25s ease;
