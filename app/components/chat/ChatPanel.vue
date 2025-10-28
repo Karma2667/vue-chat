@@ -44,19 +44,24 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'open-chat', dialog: Dialog): void;
-  (e: 'go-back'): void;
-  (e: 'search'): void;
-  (e: 'search-query', query: string): void;
-  (e: 'send-message', conversationId: number, content: string | null, replyToMessageId?: number, attachment?: File): void;
-  (e: 'preview', attachment: Attachment): void;
-  (e: 'delete-message', messageId: number): void;
-  (e: 'forward-message', payload: [number, number, number[]]): void;
-  (e: 'edit-message', payload: [number, number, string]): void;
-  (e: 'cancel-edit'): void;
-  (e: 'add-user'): void; // Добавляем событие add-user
-  (e: 'rename-chat'): void; // Добавляем событие rename-chat
-}>();
+  (e: 'open-chat', dialog: Dialog): void
+  (e: 'go-back'): void
+  (e: 'search'): void
+  (e: 'search-query', query: string): void
+  (e: 'send-message', conversationId: number, content: string | null, replyToMessageId?: number, attachment?: File): void
+  (e: 'preview', attachment: Attachment): void
+  (e: 'delete-message', messageId: number): void
+  (e: 'forward-message', payload: [number, number, number[]]): void
+  (e: 'edit-message', payload: [number, number, string]): void
+  (e: 'cancel-edit'): void
+  (e: 'add-user'): void
+  (e: 'rename-chat'): void
+  (e: 'user-search'): void
+  (e: 'new-group-chat'): void
+  (e: 'selected'): void
+  (e: 'settings'): void
+  (e: 'tab-change', key: string): void
+}>()
 
 const forwardDialogs = ref<number[]>([]);
 const isForwardModalOpen = ref(false);
@@ -136,7 +141,11 @@ function handleRenameChat() {
       <div :key="`${props.currentScreen}-${props.isSearchMode}`">
         <ChatListHeader
           v-if="props.currentScreen === 'dialogs'"
-          @search="emit('search')"
+          @user-search="emit('user-search')"
+          @new-group-chat="emit('new-group-chat')"
+          @selected="emit('selected')"
+          @settings="emit('settings')"
+          @tab-change="emit('tab-change', $event)"
         />
         <ChatHeader
           v-else

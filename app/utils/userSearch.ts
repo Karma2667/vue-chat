@@ -1,10 +1,9 @@
-// utils/userSearch.ts
 import { authService } from '../utils/auth'
 
 export interface User {
   id: number
   username: string
-  email: string
+  email: string | null
   is_current_user: boolean
   avatar_url: string
   online: boolean
@@ -64,7 +63,7 @@ export async function searchUsers(
     throw new Error('Сервер вернул не JSON-ответ')
   }
 
-  const data: { users: User[] } = await response.json() // Ожидаем объект с полем users
-  console.log('Полученные пользователи:', data.users) // Отладка
-  return data.users // Возвращаем только массив users
+  const data: { users: User[] } = await response.json() // ← объект с users
+  console.log('Полученные пользователи:', data.users)
+  return data.users // ← возвращаем массив
 }

@@ -1,12 +1,7 @@
 <template>
   <div class="messenger-widget" :class="widgetClasses">
     <transition name="toggle-fade">
-      <ChatToggle
-        v-if="!isOpen"
-        :is-open="isOpen"
-        class="chat-toggle"
-        @toggle="toggleWidget"
-      />
+      <ChatToggle v-if="!isOpen" :is-open="isOpen" class="chat-toggle" @toggle="toggleWidget" />
     </transition>
 
     <Backdrop v-if="isOpen" @close="toggleWidget" />
@@ -26,24 +21,25 @@
         @open-chat="openChat"
         @go-back="goBack"
         @search="handleSearch"
+        @user-search="openUserSearch"
         @send-message="handleSendMessage"
         @preview="handlePreview"
         @delete-message="deleteMessage"
         @search-query="performSearch"
         @forward-message="forwardMessage(...$event)"
-        @edit-message="handleEditMessage"  
-        @cancel-edit="cancelEdit"        
+        @edit-message="handleEditMessage"
+        @cancel-edit="cancelEdit"
       />
     </transition>
 
+    <!-- ПОИСК ПОЛЬЗОВАТЕЛЕЙ -->
     <UserSearch
-      :visible="showSearch"
-      :conversation-id="activeChat?.id"
-      :dialogs="dialogs"
+      :visible="userSearchVisible"
       @select-user="handleSelectUser"
-      @close="showSearch = false"
+      @close="userSearchVisible = false"
     />
 
+    <!-- ПОИСК СООБЩЕНИЙ -->
     <MessageSearch
       :visible="messageSearchVisible"
       :conversation-id="activeChat?.id"
@@ -61,16 +57,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { type ChatMessage } from '~/composables/useChat';
-import ChatToggle from './ChatToggle.vue';
-import Backdrop from './Backdrop.vue';
-import ChatPanel from './ChatPanel.vue';
-import UserSearch from './UserSearch.vue';
-import MessageSearch from './MessageSearch.vue';
-import AttachmentPreview from './AttachmentPreview.vue';
+import { computed, onMounted, ref } from 'vue'
+import { type ChatMessage } from '~/composables/useChat'
+import { createPrivateChat } from '~/utils/createPrivateChat'
+import type { Conversation } from '@/utils/conversations'
 
-import { useChat } from '~/composables/useChat';
+import ChatToggle from './ChatToggle.vue'
+import Backdrop from './Backdrop.vue'
+import ChatPanel from './ChatPanel.vue'
+import UserSearch from './UserSearch.vue'
+import MessageSearch from './MessageSearch.vue'
+import AttachmentPreview from './AttachmentPreview.vue'
+
+import { useChat } from '~/composables/useChat'
 
 const {
   isOpen,
@@ -82,7 +81,6 @@ const {
   searchResults,
   isSearching,
   isSearchMode,
-  showSearch,
   previewAttachment,
   loadConversations,
   openChat,
@@ -92,49 +90,72 @@ const {
   goBack,
   handleSendMessage,
   handlePreview,
-  handleSelectUser,
-  clearSearch,
   forwardMessage,
-  handleEditMessage,  // ✅ Добавляем handleEditMessage
-  cancelEdit,        // ✅ Добавляем cancelEdit
-} = useChat();
+  handleEditMessage,
+  cancelEdit,
+} = useChat()
 
-const messageSearchVisible = ref(false);
+const messageSearchVisible = ref(false)
+const userSearchVisible = ref(false)
 
 function handleSearch() {
-  console.log('🔍 Поиск сообщений активирован!');
-  if (activeChat.value) {
-    messageSearchVisible.value = true;
+  if (currentScreen.value === 'chat') {
+    messageSearchVisible.value = true
+  }
+}
+
+function openUserSearch() {
+  userSearchVisible.value = true
+}
+
+async function handleSelectUser(user: { id: number; username: string }) {
+  try {
+    const conversation = await createPrivateChat(user.id)
+
+    const exists = dialogs.value.some(d => d.id === conversation.id)
+    if (!exists) {
+      dialogs.value = [
+        ...dialogs.value,
+        {
+          id: conversation.id,
+          from: user.username,
+          type: 'private',
+          lastMessage: undefined // ← undefined, не null
+        }
+      ]
+    }
+
+    openChat({
+      id: conversation.id,
+      from: user.username,
+      type: 'private',
+      lastMessage: undefined // ← undefined
+    })
+
+    userSearchVisible.value = false
+  } catch (err: any) {
+    alert(err.message || 'Не удалось открыть чат')
   }
 }
 
 function onMessageSelect(message: ChatMessage) {
-  console.log('📄 Выбрано сообщение:', message.id);
-  
-  const element = document.querySelector(`[data-message-id="${message.id}"]`);
-  if (element) {
-    element.scrollIntoView({ 
-      behavior: 'smooth', 
-      block: 'center' 
-    });
-    
-    element.classList.add('message-highlight');
-    setTimeout(() => {
-      element.classList.remove('message-highlight');
-    }, 3000);
+  const el = document.querySelector(`[data-message-id="${message.id}"]`)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.add('message-highlight')
+    setTimeout(() => el.classList.remove('message-highlight'), 3000)
   }
-  
-  messageSearchVisible.value = false;
+  messageSearchVisible.value = false
 }
 
 const widgetClasses = computed(() => ({
   'is-open': isOpen.value,
   'panel-inited': true,
-}));
+}))
 
 onMounted(() => {
-  loadConversations();
-});
+  loadConversations()
+})
 </script>
 
 <style scoped>

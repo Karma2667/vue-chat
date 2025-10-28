@@ -14,7 +14,7 @@ const tabs = [
 
 const emit = defineEmits<{
   (e: 'tab-change', key: string): void
-  (e: 'search'): void
+  (e: 'user-search'): void
   (e: 'new-group-chat'): void
   (e: 'settings'): void
   (e: 'selected'): void
@@ -64,7 +64,7 @@ function selectTab(tabKey: string, index: number) {
     <div class="top-row">
       <h2>Чаты</h2>
       <div class="icons">
-        <i class="fas fa-search" @click="emit('search')"></i>
+        <i class="fas fa-search" @click="emit('user-search')"></i>
         <i class="fa-solid fa-user-group" @click="emit('new-group-chat')"></i>
         <i class="fa-solid fa-circle-check" @click="emit('selected')"></i>
         <i class="fas fa-cog" @click="emit('settings')"></i>
