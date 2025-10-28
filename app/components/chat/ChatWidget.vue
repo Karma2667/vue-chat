@@ -23,7 +23,6 @@
         @search="handleSearch"
         @user-search="openUserSearch"
         @send-message="handleSendMessage"
-        @preview="handlePreview"
         @delete-message="deleteMessage"
         @search-query="performSearch"
         @forward-message="forwardMessage(...$event)"
@@ -60,7 +59,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { type ChatMessage } from '~/composables/useChat'
 import { createPrivateChat } from '~/utils/createPrivateChat'
-import type { Conversation } from '@/utils/conversations'
+import { sendMessage } from '~/utils/messages'
+import type { Message } from '~/utils/messages'
 
 import ChatToggle from './ChatToggle.vue'
 import Backdrop from './Backdrop.vue'
@@ -88,8 +88,6 @@ const {
   performSearch,
   toggleWidget,
   goBack,
-  handleSendMessage,
-  handlePreview,
   forwardMessage,
   handleEditMessage,
   cancelEdit,
@@ -120,7 +118,7 @@ async function handleSelectUser(user: { id: number; username: string }) {
           id: conversation.id,
           from: user.username,
           type: 'private',
-          lastMessage: undefined // ← undefined, не null
+          lastMessage: undefined
         }
       ]
     }
@@ -129,12 +127,92 @@ async function handleSelectUser(user: { id: number; username: string }) {
       id: conversation.id,
       from: user.username,
       type: 'private',
-      lastMessage: undefined // ← undefined
+      lastMessage: undefined
     })
 
     userSearchVisible.value = false
   } catch (err: any) {
     alert(err.message || 'Не удалось открыть чат')
+  }
+}
+
+async function handleSendMessage(
+  conversationId: number,
+  content: string | null,
+  replyToMessageId?: number,
+  attachment?: File
+) {
+  if (!conversationId || (!content?.trim() && !attachment)) return
+
+  // 1. ВРЕМЕННОЕ СООБЩЕНИЕ
+  const tempId = Date.now()
+  const tempMessage: ChatMessage = {
+    id: tempId,
+    text: content || '',
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    author: 'You',
+    self: true,
+    reply: replyToMessageId
+      ? { id: replyToMessageId, author: '', text: '[Загрузка...]' }
+      : null,
+    attachments: attachment
+      ? [{ type: 'file', url: URL.createObjectURL(attachment), name: attachment.name }]
+      : [],
+    edited: false
+  }
+
+  if (!chats.value[conversationId]) chats.value[conversationId] = []
+  chats.value[conversationId].push(tempMessage)
+
+  // 2. ОТПРАВКА НА СЕРВЕР
+  try {
+    const response = await sendMessage(conversationId, {
+      message: {
+        content: content || null,
+        reply_to_message_id: replyToMessageId,
+        attachment: attachment ? {
+          filename: attachment.name,
+          size: attachment.size,
+          mime_type: attachment.type
+        } : undefined
+      }
+    })
+
+    // 3. ЗАМЕНА ВРЕМЕННОГО СООБЩЕНИЯ
+    const serverMsg = response
+    const index = chats.value[conversationId].findIndex(m => m.id === tempId)
+if (index !== -1) {
+  chats.value[conversationId][index] = {
+    id: serverMsg.id,
+    text: serverMsg.content || '',
+    time: new Date(serverMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    author: serverMsg.user?.username || 'You',
+    self: true,
+    reply: serverMsg.reply_to
+      ? typeof serverMsg.reply_to === 'number'
+        ? { id: serverMsg.reply_to, author: '', text: '' }
+        : {
+            id: serverMsg.reply_to.id,
+            author: serverMsg.reply_to.user?.username || 'Unknown', // ← безопасно
+            text: serverMsg.reply_to.content || ''
+          }
+      : null,
+    attachments: serverMsg.attachment
+      ? [{
+          type: serverMsg.attachment.mime_type?.startsWith('image') ? 'image' :
+                serverMsg.attachment.mime_type?.startsWith('video') ? 'video' : 'file',
+          url: serverMsg.attachment.url || '',
+          name: serverMsg.attachment.filename,
+          size: serverMsg.attachment.size?.toString()
+        }]
+      : [],
+    edited: serverMsg.edited
+  }
+}
+  } catch (err: any) {
+    console.error('Ошибка отправки:', err)
+    chats.value[conversationId] = chats.value[conversationId].filter(m => m.id !== tempId)
+    alert(err.message || 'Не удалось отправить сообщение')
   }
 }
 
@@ -157,6 +235,10 @@ onMounted(() => {
   loadConversations()
 })
 </script>
+
+<style scoped>
+/* ... твой стиль ... */
+</style>
 
 <style scoped>
 .messenger-widget {

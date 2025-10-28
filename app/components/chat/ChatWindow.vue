@@ -1,218 +1,181 @@
 <script setup lang="ts">
-import { defineProps, defineEmits, ref, computed, nextTick, watch } from 'vue';
-import MessageItem from './MessageItem.vue';
-import MessageInput from './MessageInput.vue';
+import { defineProps, defineEmits, ref, computed, nextTick, watch } from 'vue'
+import MessageItem from './MessageItem.vue'
+import MessageInput from './MessageInput.vue'
 
 interface ChatMessage {
-  id: number;
-  text: string;
-  time: string;
-  author: string;
-  self: boolean;
-  reply: { id: number; author?: string; text: string } | null;
-  attachments: Array<{ type: 'image' | 'video' | 'file'; url: string; name?: string; size?: string }>;
-  edited?: boolean;
+  id: number
+  text: string
+  time: string
+  author: string
+  self: boolean
+  reply: { id: number; author?: string; text: string } | null
+  attachments: Array<{ type: 'image' | 'video' | 'file'; url: string; name?: string; size?: string }>
+  edited?: boolean
 }
 
 interface Dialog {
-  id: number;
-  from: string;
-  type?: string;
-  lastMessage?: { content: string; created_at: string; username: string };
+  id: number
+  from: string
+  type?: string
+  lastMessage?: { content: string; created_at: string; username: string }
 }
 
 const props = defineProps<{
-  activeChat: Dialog | null;
-  chats: Record<number, ChatMessage[]>;
-  searchQuery: string;
-  searchResults: ChatMessage[];
-  isSearching: boolean;
-  isSearchMode: boolean;
-}>();
+  activeChat: Dialog | null
+  chats: Record<number, ChatMessage[]>
+  searchQuery: string
+  searchResults: ChatMessage[]
+  isSearching: boolean
+  isSearchMode: boolean
+}>()
 
 const emit = defineEmits<{
-  (e: 'send-message', payload: [number, string | null, number | undefined, File | undefined]): void;
-  (e: 'preview', attachment: { type: 'image' | 'video' | 'file'; url: string; name?: string; size?: string }): void;
-  (e: 'delete-message', id: number): void;
-  (e: 'search-query', query: string): void;
-  (e: 'forward-message', payload: [number, number, number[]]): void;
-  (e: 'edit-message', payload: [number, number, string]): void;
-  (e: 'cancel-edit'): void;
-}>();
+  (e: 'send-message', payload: [number, string | null, number | undefined, File | undefined]): void
+  (e: 'preview', attachment: { type: 'image' | 'video' | 'file'; url: string; name?: string; size?: string }): void
+  (e: 'delete-message', id: number): void
+  (e: 'search-query', query: string): void
+  (e: 'forward-message', payload: [number, number, number[]]): void
+  (e: 'edit-message', payload: [number, number, string]): void
+  (e: 'cancel-edit'): void
+}>()
 
-const messagesContainer = ref<HTMLDivElement | null>(null);
-const replyingTo = ref<number | undefined>(undefined);
-const highlightedMessageId = ref<number | null>(null);
-const editingMessage = ref<{ id: number; text: string } | null>(null);
+const messagesContainer = ref<HTMLDivElement | null>(null)
+const replyingTo = ref<number | undefined>(undefined)
+const highlightedMessageId = ref<number | null>(null)
+const editingMessage = ref<{ id: number; text: string } | null>(null)
 
 const messages = computed(() => {
-  if (props.isSearchMode) {
-    return props.searchResults;
-  }
-  if (!props.activeChat) return [];
-  return props.chats[props.activeChat.id] || [];
-});
+  if (props.isSearchMode) return props.searchResults
+  if (!props.activeChat) return []
+  return props.chats[props.activeChat.id] || []
+})
 
 const replyingMessage = computed(() => {
-  if (!replyingTo.value) return null;
-  return messages.value.find((m) => m.id === replyingTo.value) || null;
-});
+  if (!replyingTo.value) return null
+  return messages.value.find(m => m.id === replyingTo.value) || null
+})
 
 const replyingPreview = computed(() => {
-  if (!replyingTo.value || !replyingMessage.value) return null;
-  const msg = replyingMessage.value;
+  if (!replyingTo.value || !replyingMessage.value) return null
+  const msg = replyingMessage.value
   if (msg.text.trim()) {
-    return { text: msg.text, author: msg.author, id: msg.id };
+    return { text: msg.text, author: msg.author, id: msg.id }
   } else if (msg.attachments.length > 0) {
-    const firstAttachment = msg.attachments[0]!;
+    const first = msg.attachments[0]!
     return {
-      text: firstAttachment.name || `[Вложение: ${firstAttachment.type.toUpperCase()}]`,
+      text: first.name || `[Вложение: ${first.type.toUpperCase()}]`,
       author: msg.author,
-      id: msg.id,
-    };
+      id: msg.id
+    }
   }
-  return null;
-});
+  return null
+})
 
 function scrollToBottom(behavior: 'smooth' | 'auto' = 'smooth') {
   nextTick(() => {
     if (messagesContainer.value) {
       messagesContainer.value.scrollTo({
         top: messagesContainer.value.scrollHeight,
-        behavior,
-      });
+        behavior
+      })
     }
-  });
+  })
 }
 
-function scrollToMessage(id: number, highlightDuration: number = 3000) {
-  nextTick(async () => {
-    const selectors = [
-      `[data-message-id="${id}"]`,
-      `#message-${id}`,
-      `.message-item[data-id="${id}"]`
-    ];
-    let messageElement: Element | null = null;
-    for (const selector of selectors) {
-      messageElement = document.querySelector(selector);
-      if (messageElement) break;
-    }
-    if (messageElement) {
-      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
-      highlightedMessageId.value = id;
-      messageElement.classList.add('message-highlight');
+function scrollToMessage(id: number, duration = 3000) {
+  nextTick(() => {
+    const el = document.querySelector(`[data-message-id="${id}"]`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      highlightedMessageId.value = id
+      el.classList.add('message-highlight')
       setTimeout(() => {
-        messageElement?.classList.remove('message-highlight');
-        highlightedMessageId.value = null;
-      }, highlightDuration);
-    } else {
-      console.warn(`⚠️ Сообщение с ID ${id} не найдено`);
+        el.classList.remove('message-highlight')
+        highlightedMessageId.value = null
+      }, duration)
     }
-  });
+  })
 }
 
-watch(messages, (newMessages) => {
-  if (newMessages.length > 0) {
-    scrollToBottom('smooth');
-  }
-}, { deep: true, immediate: true });
+watch(messages, () => scrollToBottom('smooth'), { deep: true, immediate: true })
 
 async function sendMessage(text: string, attachments?: File[]) {
-  if (!props.activeChat) return;
-  const hasText = text.trim().length > 0;
-  const hasAttachments = attachments && attachments.length > 0;
-  if (!hasText && !hasAttachments) return;
-  let attachment: File | undefined = undefined;
-  if (attachments && attachments.length > 0 && attachments[0]) {
-    attachment = attachments[0];
-  }
-  const content = text.trim() || null;
-  const conversationId = props.activeChat.id;
-  const replyToMessageId = replyingTo.value;
-  emit('send-message', [conversationId, content, replyToMessageId, attachment] as const);
-  replyingTo.value = undefined;
-  scrollToBottom('smooth');
+  if (!props.activeChat) return
+  const hasText = text.trim().length > 0
+  const hasAttachments = attachments && attachments.length > 0
+  if (!hasText && !hasAttachments) return
+
+  const attachment = attachments?.[0]
+  const content = text.trim() || null
+  const conversationId = props.activeChat.id
+  const replyToMessageId = replyingTo.value
+
+  emit('send-message', [conversationId, content, replyToMessageId, attachment] as const)
+  replyingTo.value = undefined
 }
 
 function setReply(id: number) {
-  replyingTo.value = id;
-  editingMessage.value = null;
-  scrollToMessage(id, 2000);
+  replyingTo.value = id
+  editingMessage.value = null
+  scrollToMessage(id, 2000)
 }
 
 function setEdit(id: number, text: string) {
-  console.log('🖌️ setEdit:', { id, text });
-  editingMessage.value = { id, text };
-  replyingTo.value = undefined;
-  scrollToMessage(id, 2000);
+  editingMessage.value = { id, text }
+  replyingTo.value = undefined
+  scrollToMessage(id, 2000)
 }
 
 function cancelEdit() {
-  console.log('🚫 cancelEdit');
-  editingMessage.value = null;
-  emit('cancel-edit');
+  editingMessage.value = null
+  emit('cancel-edit')
 }
 
-function handleSearchQuery(event: Event) {
-  const target = event.target as HTMLInputElement;
-  emit('search-query', target.value);
+function handleSearchQuery(e: Event) {
+  emit('search-query', (e.target as HTMLInputElement).value)
 }
 
 function clearSearch() {
-  emit('search-query', '');
+  emit('search-query', '')
 }
 
-function handlePreview(attachment: { type: 'image' | 'video' | 'file'; url: string; name?: string; size?: string }) {
-  emit('preview', attachment);
+function handlePreview(attachment: any) {
+  emit('preview', attachment)
 }
 
 function handleDeleteMessage(id: number) {
-  emit('delete-message', id);
+  emit('delete-message', id)
 }
 
 function handleForwardMessage(messageId: number) {
-  if (!props.activeChat) return;
-  emit('forward-message', [props.activeChat.id, messageId, []]);
+  if (!props.activeChat) return
+  emit('forward-message', [props.activeChat.id, messageId, []])
 }
 
 function handleEditMessage(id: number, text: string) {
-  console.log('📝 ChatWindow handleEditMessage:', { id, text });
-  if (!props.activeChat) return;
-  emit('edit-message', [props.activeChat.id, id, text]);
+  if (!props.activeChat) return
+  emit('edit-message', [props.activeChat.id, id, text])
 }
 
-defineExpose({ scrollToMessage });
+defineExpose({ scrollToMessage })
 </script>
 
 <template>
   <div class="chat-window">
+    <!-- Поиск -->
     <div v-if="props.isSearchMode" class="search-header">
       <div class="search-input-container">
-        <input 
-          :value="props.searchQuery"
-          @input="handleSearchQuery"
-          placeholder="Поиск сообщений..."
-          class="search-input"
-          autocomplete="off"
-        />
-        <button @click="clearSearch" class="search-clear" title="Очистить">
-          ×
-        </button>
+        <input :value="props.searchQuery" @input="handleSearchQuery" placeholder="Поиск сообщений..." class="search-input" />
+        <button @click="clearSearch" class="search-clear">×</button>
       </div>
-      <div v-if="props.isSearching" class="search-status">🔍 Поиск...</div>
-      <div v-else-if="props.searchResults.length === 0" class="search-status">
-        Ничего не найдено
-      </div>
-      <div v-else class="search-status">
-        Найдено: {{ props.searchResults.length }}
-      </div>
+      <div v-if="props.isSearching" class="search-status">Поиск...</div>
+      <div v-else-if="props.searchResults.length === 0" class="search-status">Ничего не найдено</div>
+      <div v-else class="search-status">Найдено: {{ props.searchResults.length }}</div>
     </div>
 
+    <!-- Сообщения -->
     <div class="messages" ref="messagesContainer">
-      <div v-if="props.isSearchMode && props.searchResults.length === 0 && !props.isSearching" class="no-results">
-        Ничего не найдено по запросу "{{ props.searchQuery }}"
-      </div>
-      
       <MessageItem
         v-for="msg in messages"
         :key="msg.id"
@@ -230,17 +193,17 @@ defineExpose({ scrollToMessage });
         @preview="handlePreview"
         @delete="handleDeleteMessage"
         @forward="handleForwardMessage"
-        @edit="setEdit" 
+        @edit="setEdit"
       />
     </div>
 
+    <!-- Инпут -->
     <MessageInput
       v-if="!props.isSearchMode"
       @send="sendMessage"
       @cancel-reply="replyingTo = undefined"
       @cancel-edit="cancelEdit"
       @scroll-to-reply="scrollToMessage"
-      @edit="handleEditMessage" 
       :replying-text="replyingPreview?.text || ''"
       :replying-author="replyingPreview?.author || ''"
       :replying-id="replyingPreview?.id"
@@ -249,6 +212,10 @@ defineExpose({ scrollToMessage });
     />
   </div>
 </template>
+
+<style scoped>
+/* ... твой стиль ... */
+</style>
 
 <style scoped>
 .chat-window {
