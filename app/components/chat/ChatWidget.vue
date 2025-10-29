@@ -28,6 +28,7 @@
         @forward-message="forwardMessage(...$event)"
         @edit-message="handleEditMessage"
         @cancel-edit="cancelEdit"
+        @create-group-chat="createGroupChat"
       />
     </transition>
 
@@ -61,6 +62,7 @@ import { type ChatMessage } from '~/composables/useChat'
 import { createPrivateChat } from '~/utils/createPrivateChat'
 import { sendMessage } from '~/utils/messages'
 import type { Message } from '~/utils/messages'
+import { authService } from '~/utils/auth' // ← ИСПРАВЛЕНО
 
 import ChatToggle from './ChatToggle.vue'
 import Backdrop from './Backdrop.vue'
@@ -136,6 +138,44 @@ async function handleSelectUser(user: { id: number; username: string }) {
   }
 }
 
+// НОВАЯ ФУНКЦИЯ — СОЗДАНИЕ ГРУППОВОГО ЧАТА
+async function createGroupChat(name: string, userIds: number[]) {
+  try {
+    const response = await authService.makeRequest<{ conversation: any }>(
+      '/conversations',
+      'POST',
+      {
+        conversation: {
+          conversation_type: 'group_chat',
+          name,
+          user_ids: userIds
+        }
+      }
+    )
+
+    const conv = response.conversation
+
+    const exists = dialogs.value.some(d => d.id === conv.id)
+    if (!exists) {
+      dialogs.value = [...dialogs.value, {
+        id: conv.id,
+        from: name,
+        type: 'group',
+        lastMessage: undefined
+      }]
+    }
+
+    openChat({
+      id: conv.id,
+      from: name,
+      type: 'group',
+      lastMessage: undefined
+    })
+  } catch (err: any) {
+    alert(err.message || 'Не удалось создать группу')
+  }
+}
+
 async function handleSendMessage(
   conversationId: number,
   content: string | null,
@@ -144,7 +184,6 @@ async function handleSendMessage(
 ) {
   if (!conversationId || (!content?.trim() && !attachment)) return
 
-  // 1. ВРЕМЕННОЕ СООБЩЕНИЕ
   const tempId = Date.now()
   const tempMessage: ChatMessage = {
     id: tempId,
@@ -164,7 +203,6 @@ async function handleSendMessage(
   if (!chats.value[conversationId]) chats.value[conversationId] = []
   chats.value[conversationId].push(tempMessage)
 
-  // 2. ОТПРАВКА НА СЕРВЕР
   try {
     const response = await sendMessage(conversationId, {
       message: {
@@ -178,37 +216,36 @@ async function handleSendMessage(
       }
     })
 
-    // 3. ЗАМЕНА ВРЕМЕННОГО СООБЩЕНИЯ
     const serverMsg = response
     const index = chats.value[conversationId].findIndex(m => m.id === tempId)
-if (index !== -1) {
-  chats.value[conversationId][index] = {
-    id: serverMsg.id,
-    text: serverMsg.content || '',
-    time: new Date(serverMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    author: serverMsg.user?.username || 'You',
-    self: true,
-    reply: serverMsg.reply_to
-      ? typeof serverMsg.reply_to === 'number'
-        ? { id: serverMsg.reply_to, author: '', text: '' }
-        : {
-            id: serverMsg.reply_to.id,
-            author: serverMsg.reply_to.user?.username || 'Unknown', // ← безопасно
-            text: serverMsg.reply_to.content || ''
-          }
-      : null,
-    attachments: serverMsg.attachment
-      ? [{
-          type: serverMsg.attachment.mime_type?.startsWith('image') ? 'image' :
-                serverMsg.attachment.mime_type?.startsWith('video') ? 'video' : 'file',
-          url: serverMsg.attachment.url || '',
-          name: serverMsg.attachment.filename,
-          size: serverMsg.attachment.size?.toString()
-        }]
-      : [],
-    edited: serverMsg.edited
-  }
-}
+    if (index !== -1) {
+      chats.value[conversationId][index] = {
+        id: serverMsg.id,
+        text: serverMsg.content || '',
+        time: new Date(serverMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        author: serverMsg.user?.username || 'You',
+        self: true,
+        reply: serverMsg.reply_to
+          ? typeof serverMsg.reply_to === 'number'
+            ? { id: serverMsg.reply_to, author: '', text: '' }
+            : {
+                id: serverMsg.reply_to.id,
+                author: serverMsg.reply_to.user?.username || 'Unknown',
+                text: serverMsg.reply_to.content || ''
+              }
+          : null,
+        attachments: serverMsg.attachment
+          ? [{
+              type: serverMsg.attachment.mime_type?.startsWith('image') ? 'image' :
+                    serverMsg.attachment.mime_type?.startsWith('video') ? 'video' : 'file',
+              url: serverMsg.attachment.url || '',
+              name: serverMsg.attachment.filename,
+              size: serverMsg.attachment.size?.toString()
+            }]
+          : [],
+        edited: serverMsg.edited
+      }
+    }
   } catch (err: any) {
     console.error('Ошибка отправки:', err)
     chats.value[conversationId] = chats.value[conversationId].filter(m => m.id !== tempId)
@@ -235,10 +272,6 @@ onMounted(() => {
   loadConversations()
 })
 </script>
-
-<style scoped>
-/* ... твой стиль ... */
-</style>
 
 <style scoped>
 .messenger-widget {

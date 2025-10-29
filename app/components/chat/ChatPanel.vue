@@ -1,47 +1,47 @@
 <script setup lang="ts">
-import { ref, computed, defineProps, defineEmits } from 'vue';
-import DialogList from './DialogList.vue';
-import ChatWindow from './ChatWindow.vue';
-import ChatListHeader from './ChatListHeader.vue';
-import ChatHeader from './ChatHeader.vue';
-import { type Conversation } from '@/utils/conversations'; // Импортируем тип Conversation
+import { ref, computed, defineProps, defineEmits } from 'vue'
+import DialogList from './DialogList.vue'
+import ChatWindow from './ChatWindow.vue'
+import ChatListHeader from './ChatListHeader.vue'
+import ChatHeader from './ChatHeader.vue'
+import { type Conversation } from '@/utils/conversations'
 
 interface Attachment {
-  type: 'image' | 'video' | 'file';
-  url: string;
-  name?: string;
-  size?: string;
+  type: 'image' | 'video' | 'file'
+  url: string
+  name?: string
+  size?: string
 }
 
 interface ChatMessage {
-  id: number;
-  text: string;
-  time: string;
-  author: string;
-  self: boolean;
-  reply: { id: number; author?: string; text: string } | null;
-  attachments: Attachment[];
-  edited?: boolean;
+  id: number
+  text: string
+  time: string
+  author: string
+  self: boolean
+  reply: { id: number; author?: string; text: string } | null
+  attachments: Attachment[]
+  edited?: boolean
 }
 
 interface Dialog {
-  id: number;
-  from: string;
-  type?: string;
-  lastMessage?: { content: string; created_at: string; username: string };
+  id: number
+  from: string
+  type?: string
+  lastMessage?: { content: string; created_at: string; username: string }
 }
 
 const props = defineProps<{
-  isOpen: boolean;
-  currentScreen: 'dialogs' | 'chat';
-  dialogs: Dialog[];
-  activeChat: Dialog | null;
-  chats: Record<number, ChatMessage[]>;
-  searchQuery: string;
-  searchResults: ChatMessage[];
-  isSearching: boolean;
-  isSearchMode: boolean;
-}>();
+  isOpen: boolean
+  currentScreen: 'dialogs' | 'chat'
+  dialogs: Dialog[]
+  activeChat: Dialog | null
+  chats: Record<number, ChatMessage[]>
+  searchQuery: string
+  searchResults: ChatMessage[]
+  isSearching: boolean
+  isSearchMode: boolean
+}>()
 
 const emit = defineEmits<{
   (e: 'open-chat', dialog: Dialog): void
@@ -61,19 +61,19 @@ const emit = defineEmits<{
   (e: 'selected'): void
   (e: 'settings'): void
   (e: 'tab-change', key: string): void
+  (e: 'create-group-chat', name: string, userIds: number[]): void
 }>()
 
-const forwardDialogs = ref<number[]>([]);
-const isForwardModalOpen = ref(false);
-const messageToForward = ref<number | null>(null);
+const forwardDialogs = ref<number[]>([])
+const isForwardModalOpen = ref(false)
+const messageToForward = ref<number | null>(null)
 
-// Преобразуем Dialog в Conversation для передачи в ChatHeader
 const activeConversation = computed<Conversation | null>(() => {
-  if (!props.activeChat) return null;
+  if (!props.activeChat) return null
   return {
     id: props.activeChat.id,
     name: props.activeChat.from,
-    conversation_type: props.activeChat.type || 'private', // Предполагаем private по умолчанию
+    conversation_type: props.activeChat.type || 'private',
     owner_id: null,
     created_at: '',
     updated_at: '',
@@ -89,49 +89,51 @@ const activeConversation = computed<Conversation | null>(() => {
           username: props.activeChat.lastMessage.username,
         }
       : undefined,
-  };
-});
+  }
+})
 
-const selectedDialogs = computed(() => forwardDialogs.value);
+const selectedDialogs = computed(() => forwardDialogs.value)
 
 function openForwardModal(messageId: number) {
-  messageToForward.value = messageId;
-  isForwardModalOpen.value = true;
+  messageToForward.value = messageId
+  isForwardModalOpen.value = true
 }
 
 function closeForwardModal() {
-  isForwardModalOpen.value = false;
-  forwardDialogs.value = [];
-  messageToForward.value = null;
+  isForwardModalOpen.value = false
+  forwardDialogs.value = []
+  messageToForward.value = null
 }
 
 function handleForward() {
   if (messageToForward.value && props.activeChat && forwardDialogs.value.length > 0) {
-    emit('forward-message', [props.activeChat.id, messageToForward.value, [...forwardDialogs.value]]);
-    closeForwardModal();
+    emit('forward-message', [props.activeChat.id, messageToForward.value, [...forwardDialogs.value]])
+    closeForwardModal()
   } else {
-    alert('Выберите хотя бы один диалог для пересылки');
+    alert('Выберите хотя бы один диалог для пересылки')
   }
 }
 
 function toggleDialogSelection(dialogId: number) {
-  const index = forwardDialogs.value.indexOf(dialogId);
+  const index = forwardDialogs.value.indexOf(dialogId)
   if (index === -1) {
-    forwardDialogs.value = [...forwardDialogs.value, dialogId];
+    forwardDialogs.value = [...forwardDialogs.value, dialogId]
   } else {
-    forwardDialogs.value = forwardDialogs.value.filter(id => id !== dialogId);
+    forwardDialogs.value = forwardDialogs.value.filter(id => id !== dialogId)
   }
 }
 
-// Обработчики для add-user и rename-chat
 function handleAddUser() {
-  console.log('Открыть модальное окно для добавления пользователя');
-  emit('add-user');
+  emit('add-user')
 }
 
 function handleRenameChat() {
-  console.log('Открыть модальное окно для переименования чата');
-  emit('rename-chat');
+  emit('rename-chat')
+}
+
+// ПРАВИЛЬНАЯ ПЕРЕДАЧА create-group-chat
+function handleCreateGroupChat(name: string, userIds: number[]) {
+  emit('create-group-chat', name, userIds)
 }
 </script>
 
@@ -143,9 +145,8 @@ function handleRenameChat() {
           v-if="props.currentScreen === 'dialogs'"
           @user-search="emit('user-search')"
           @new-group-chat="emit('new-group-chat')"
-          @selected="emit('selected')"
-          @settings="emit('settings')"
           @tab-change="emit('tab-change', $event)"
+          @create-group-chat="handleCreateGroupChat"
         />
         <ChatHeader
           v-else
@@ -187,6 +188,7 @@ function handleRenameChat() {
       </div>
     </transition>
 
+    <!-- Модалка пересылки -->
     <div v-if="isForwardModalOpen" class="modal-overlay" @click.self="closeForwardModal">
       <div class="modal-content">
         <h3>Выберите диалоги для пересылки</h3>
