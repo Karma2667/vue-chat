@@ -29,6 +29,7 @@
         @edit-message="handleEditMessage"
         @cancel-edit="cancelEdit"
         @create-group-chat="createGroupChat"
+        @update-dialogs="dialogs = $event"
       />
     </transition>
 

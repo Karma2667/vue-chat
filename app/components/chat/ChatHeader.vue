@@ -1,81 +1,132 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import { type Conversation } from '@/utils/conversations';
-import { authService } from '../../utils/auth'; // Путь к authService
+import { ref, watch, computed } from 'vue'
+import { type Conversation } from '@/utils/conversations'
+import { authService } from '../../utils/auth'
+import UserSearch from './UserSearch.vue'
 
 const props = defineProps<{
-  title: string;
-  conversation: Conversation;
-  isSearchMode?: boolean;
-}>();
+  title: string
+  conversation: Conversation
+  isSearchMode?: boolean
+}>()
 
 const emit = defineEmits<{
-  (e: 'go-back'): void;
-  (e: 'search'): void;
-  (e: 'search-query', query: string): void;
-  (e: 'add-user'): void;
-  (e: 'rename-chat'): void;
-}>();
+  (e: 'go-back'): void
+  (e: 'search'): void
+  (e: 'search-query', query: string): void
+  (e: 'rename-chat'): void
+  (e: 'conversation-deleted', id: number): void
+  (e: 'participant-added', participant: { id: number; user_id: number }): void
+}>()
 
-const isMenuOpen = ref(false);
-const searchQuery = ref('');
+const isMenuOpen = ref(false)
+const searchQuery = ref('')
+const showAddUserModal = ref(false)
+const selectedUserToAdd = ref<{ id: number; username: string } | null>(null)
 
-// Отслеживание режима поиска
+// === Групповой чат? ===
+const isGroupChat = computed(() => {
+  const type = props.conversation.conversation_type
+  console.log('[ChatHeader] conversation_type:', type, props.conversation)
+  return ['group', 'group_chat'].includes(type) || String(type).toLowerCase().includes('group')
+})
+
+// === Поиск ===
 watch(() => props.isSearchMode, (isSearch) => {
   if (isSearch) {
-    isMenuOpen.value = false;
-    searchQuery.value = '';
+    isMenuOpen.value = false
+    searchQuery.value = ''
   }
-});
+})
 
 function toggleMenu() {
   if (!props.isSearchMode) {
-    isMenuOpen.value = !isMenuOpen.value;
+    isMenuOpen.value = !isMenuOpen.value
   }
 }
 
 function openSearch() {
-  emit('search');
-  isMenuOpen.value = false;
+  emit('search')
+  isMenuOpen.value = false
 }
 
 function handleSearchInput(event: Event) {
-  const target = event.target as HTMLInputElement;
-  emit('search-query', target.value);
+  const target = event.target as HTMLInputElement
+  emit('search-query', target.value)
 }
 
 function clearSearch() {
-  searchQuery.value = '';
-  emit('search-query', '');
+  searchQuery.value = ''
+  emit('search-query', '')
 }
 
-// Функция удаления диалога с обработкой ошибок
+// === Удаление диалога ===
 async function deleteConversation() {
   try {
-    const response = await authService.makeRequest<{ success: boolean; message: string }>(
-      `/api/v1/conversations/${props.conversation.id}`,
+    await authService.makeRequest(
+      `/conversations/${props.conversation.id}`,
       'DELETE'
-    );
-    isMenuOpen.value = false;
-    emit('go-back');
-    alert(response.message || 'Чат успешно удален');
+    )
+    isMenuOpen.value = false
+    emit('conversation-deleted', props.conversation.id)
+    emit('go-back')
+    alert('Чат удалён')
   } catch (error: any) {
-    console.error('Ошибка при удалении чата:', error);
-    console.log('Полный ответ сервера:', error.response?.data);
-    const status = error.response?.status;
-    let errorMessage = 'Не удалось удалить чат';
+    console.error('Ошибка при удалении чата:', error)
+    const status = error.response?.status
+    let message = 'Не удалось удалить чат'
 
-    if (status === 401) {
-      errorMessage = 'Вы не авторизованы. Пожалуйста, войдите в аккаунт';
-    } else if (status === 403) {
-      errorMessage = 'У вас нет прав для удаления этого чата';
-    } else if (status === 404) {
-      errorMessage = 'Чат не найден';
-    } else if (status === 422) {
-      errorMessage = error.response?.data?.error || 'Невозможно удалить чат по неизвестной причине';
-    }
+    if (status === 401) message = 'Вы не авторизованы'
+    else if (status === 403) message = 'У вас нет прав'
+    else if (status === 404) message = 'Чат не найден'
+    else if (status === 422) message = error.response?.data?.error || 'Невозможно удалить'
 
-    alert(errorMessage);
+    alert(message)
+  }
+}
+
+// === Добавление участника ===
+function openAddUserModal() {
+  showAddUserModal.value = true
+  selectedUserToAdd.value = null
+  isMenuOpen.value = false
+}
+
+function closeAddUserModal() {
+  showAddUserModal.value = false
+  selectedUserToAdd.value = null
+}
+
+function handleUserSelect(user: { id: number; username: string }) {
+  selectedUserToAdd.value = user
+}
+
+async function confirmAddUser() {
+  if (!selectedUserToAdd.value) return
+
+  try {
+    const response = await authService.makeRequest<{
+      participant: { id: number; user_id: number }
+    }>(
+      `/api/v1/conversations/${props.conversation.id}/participants`,
+      'POST',
+      { user_id: selectedUserToAdd.value.id }
+    )
+
+    alert(`@${selectedUserToAdd.value.username} добавлен в чат`)
+    emit('participant-added', response.participant)
+    closeAddUserModal()
+  } catch (error: any) {
+    console.error('Ошибка при добавлении участника:', error)
+    const status = error.response?.status
+    let message = 'Не удалось добавить участника'
+
+    if (status === 401) message = 'Вы не авторизованы'
+    else if (status === 403) message = 'У вас нет прав'
+    else if (status === 404) message = 'Чат не найден'
+    else if (status === 422) message = error.response?.data?.error || 'Неверный пользователь'
+
+    alert(message)
   }
 }
 </script>
@@ -118,13 +169,16 @@ async function deleteConversation() {
             <button @click="openSearch">
               <i class="fas fa-search"></i> Поиск сообщений
             </button>
-            <button v-if="props.conversation.conversation_type === 'group'" @click="deleteConversation">
+
+            <button v-if="isGroupChat" @click="deleteConversation">
               <i class="fas fa-trash"></i> Удалить диалог
             </button>
-            <button v-if="props.conversation.conversation_type === 'private'" @click="emit('add-user')">
+
+            <button v-if="isGroupChat" @click="openAddUserModal">
               <i class="fas fa-user-plus"></i> Добавить пользователя
             </button>
-            <button v-if="props.conversation.conversation_type === 'group'" @click="emit('rename-chat')">
+
+            <button v-if="isGroupChat" @click="emit('rename-chat')">
               <i class="fas fa-edit"></i> Переименовать чат
             </button>
           </div>
@@ -134,15 +188,54 @@ async function deleteConversation() {
 
     <!-- Backdrop -->
     <div v-if="isMenuOpen" class="menu-backdrop" @click="isMenuOpen = false"></div>
+
+    <!-- МОДАЛКА ДОБАВЛЕНИЯ -->
+    <div v-if="showAddUserModal" class="add-user-modal-overlay" @click="closeAddUserModal">
+      <div class="add-user-modal" @click.stop>
+        <div class="modal-header">
+          <h3>Добавить участника</h3>
+          <button @click="closeAddUserModal" class="close-btn">×</button>
+        </div>
+
+        <div class="modal-body">
+          <UserSearch
+            :visible="true"
+            @select-user="handleUserSelect"
+            @close="closeAddUserModal"
+            class="embedded-search"
+          />
+
+          <div v-if="selectedUserToAdd" class="selected-preview">
+            <div class="user-tag">
+              {{ selectedUserToAdd.username }}
+              <button @click="selectedUserToAdd = null" class="remove-btn">×</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button @click="closeAddUserModal" class="btn-cancel">Отмена</button>
+          <button
+            @click="confirmAddUser"
+            class="btn-confirm"
+            :disabled="!selectedUserToAdd"
+          >
+            Добавить
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
+/* ... (все стили из предыдущей версии — без изменений) ... */
 .chat-header {
   height: 3.55rem;
   background: #fff;
   border-bottom: 1px solid #e2e8f0;
   z-index: 10001;
+  position: relative;
 }
 
 .search-mode {
@@ -219,6 +312,9 @@ async function deleteConversation() {
   flex: 1;
   text-align: center;
   padding: 0 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .header-right {
@@ -298,5 +394,128 @@ async function deleteConversation() {
 .menu-leave-from {
   opacity: 1;
   transform: translateY(0) scale(1);
+}
+
+/* Модалка добавления */
+.add-user-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10006;
+}
+
+.add-user-modal {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 420px;
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+  padding: 1rem 1.2rem;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #999;
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.8rem 1.2rem;
+  min-height: 200px;
+}
+
+.embedded-search {
+  min-height: 300px;
+}
+
+.selected-preview {
+  margin-top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.user-tag {
+  background: #e3f2fd;
+  color: #0078ff;
+  padding: 0.35rem 0.65rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid #bbdefb;
+}
+
+.remove-btn {
+  background: none;
+  border: none;
+  color: #0078ff;
+  font-size: 1rem;
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-footer {
+  padding: 0.7rem 1.2rem;
+  border-top: 1px solid #eee;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
+.btn-cancel,
+.btn-confirm {
+  padding: 0.45rem 0.9rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  min-width: 70px;
+}
+
+.btn-cancel {
+  background: #f1f5f9;
+  color: #666;
+}
+
+.btn-confirm {
+  background: #0078ff;
+  color: white;
+}
+
+.btn-confirm:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
 }
 </style>

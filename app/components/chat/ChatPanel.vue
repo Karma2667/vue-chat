@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, defineProps, defineEmits } from 'vue'
+import { ref, computed, defineProps, defineEmits, watch } from 'vue'
 import DialogList from './DialogList.vue'
 import ChatWindow from './ChatWindow.vue'
 import ChatListHeader from './ChatListHeader.vue'
@@ -54,14 +54,14 @@ const emit = defineEmits<{
   (e: 'forward-message', payload: [number, number, number[]]): void
   (e: 'edit-message', payload: [number, number, string]): void
   (e: 'cancel-edit'): void
-  (e: 'add-user'): void
   (e: 'rename-chat'): void
   (e: 'user-search'): void
   (e: 'new-group-chat'): void
-  (e: 'selected'): void
-  (e: 'settings'): void
   (e: 'tab-change', key: string): void
   (e: 'create-group-chat', name: string, userIds: number[]): void
+  (e: 'update-dialogs', dialogs: Dialog[]): void
+  (e: 'conversation-deleted', id: number): void
+  (e: 'participant-added', participant: { id: number; user_id: number }): void
 }>()
 
 const forwardDialogs = ref<number[]>([])
@@ -73,7 +73,7 @@ const activeConversation = computed<Conversation | null>(() => {
   return {
     id: props.activeChat.id,
     name: props.activeChat.from,
-    conversation_type: props.activeChat.type || 'private',
+    conversation_type: props.activeChat.type === 'group' ? 'group' : 'private',
     owner_id: null,
     created_at: '',
     updated_at: '',
@@ -94,6 +94,7 @@ const activeConversation = computed<Conversation | null>(() => {
 
 const selectedDialogs = computed(() => forwardDialogs.value)
 
+// === Пересылка ===
 function openForwardModal(messageId: number) {
   messageToForward.value = messageId
   isForwardModalOpen.value = true
@@ -110,7 +111,7 @@ function handleForward() {
     emit('forward-message', [props.activeChat.id, messageToForward.value, [...forwardDialogs.value]])
     closeForwardModal()
   } else {
-    alert('Выберите хотя бы один диалог для пересылки')
+    alert('Выберите хотя бы один диалог')
   }
 }
 
@@ -123,18 +124,40 @@ function toggleDialogSelection(dialogId: number) {
   }
 }
 
-function handleAddUser() {
-  emit('add-user')
+// === Удаление диалога ===
+function handleConversationDeleted(id: number) {
+  const updated = props.dialogs.filter(d => d.id !== id)
+  emit('update-dialogs', updated)
+  emit('go-back')
 }
 
-function handleRenameChat() {
-  emit('rename-chat')
+// === Добавление участника ===
+function handleParticipantAdded(participant: { id: number; user_id: number }) {
+  emit('participant-added', participant)
 }
 
-// ПРАВИЛЬНАЯ ПЕРЕДАЧА create-group-chat
-function handleCreateGroupChat(name: string, userIds: number[]) {
-  emit('create-group-chat', name, userIds)
-}
+// === Обновление lastMessage ===
+watch(
+  () => props.chats,
+  (newChats) => {
+    const updatedDialogs: Dialog[] = props.dialogs.map(dialog => {
+      const messages = newChats[dialog.id]
+      const lastMsg = messages?.[messages.length - 1]
+      if (!lastMsg) return dialog
+
+      return {
+        ...dialog,
+        lastMessage: {
+          content: lastMsg.text,
+          created_at: lastMsg.time,
+          username: lastMsg.author,
+        },
+      }
+    })
+    emit('update-dialogs', updatedDialogs)
+  },
+  { deep: true }
+)
 </script>
 
 <template>
@@ -146,7 +169,7 @@ function handleCreateGroupChat(name: string, userIds: number[]) {
           @user-search="emit('user-search')"
           @new-group-chat="emit('new-group-chat')"
           @tab-change="emit('tab-change', $event)"
-          @create-group-chat="handleCreateGroupChat"
+          @create-group-chat="(name, userIds) => emit('create-group-chat', name, userIds)"
         />
         <ChatHeader
           v-else
@@ -156,8 +179,9 @@ function handleCreateGroupChat(name: string, userIds: number[]) {
           @go-back="emit('go-back')"
           @search="emit('search')"
           @search-query="emit('search-query', $event)"
-          @add-user="handleAddUser"
-          @rename-chat="handleRenameChat"
+          @rename-chat="emit('rename-chat')"
+          @conversation-deleted="handleConversationDeleted"
+          @participant-added="handleParticipantAdded"
         />
       </div>
     </transition>
@@ -214,6 +238,7 @@ function handleCreateGroupChat(name: string, userIds: number[]) {
 </template>
 
 <style scoped>
+/* ... (все стили из предыдущей версии) ... */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -315,13 +340,6 @@ function handleCreateGroupChat(name: string, userIds: number[]) {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-}
-
-.chat-panel,
-.chat-content,
-.chat-panel * {
-  user-select: auto !important;
-  pointer-events: auto !important;
 }
 
 .screen-fade-enter-active,
