@@ -158,6 +158,22 @@ watch(
   },
   { deep: true }
 )
+const activeChatTitle = computed(() => {
+  return props.activeChat?.from || 'Чат'
+})
+
+function handleTitleUpdate(newTitle: string) {
+  if (!props.activeChat) return
+
+  // Обновляем dialogs
+  const updatedDialogs = props.dialogs.map(d =>
+    d.id === props.activeChat!.id ? { ...d, from: newTitle } : d
+  )
+  emit('update-dialogs', updatedDialogs)
+
+  // Обновляем activeChat (реактивно)
+  props.activeChat.from = newTitle
+}
 </script>
 
 <template>
@@ -173,15 +189,15 @@ watch(
         />
         <ChatHeader
           v-else
-          :title="props.activeChat?.from || 'Чат'"
+          :title="activeChatTitle"
           :conversation="activeConversation!"
           :is-search-mode="props.isSearchMode"
           @go-back="emit('go-back')"
           @search="emit('search')"
           @search-query="emit('search-query', $event)"
-          @rename-chat="emit('rename-chat')"
           @conversation-deleted="handleConversationDeleted"
           @participant-added="handleParticipantAdded"
+          @update:title="handleTitleUpdate"
         />
       </div>
     </transition>

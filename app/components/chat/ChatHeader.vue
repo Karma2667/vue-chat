@@ -42,14 +42,14 @@ const emit = defineEmits<{
   (e: 'go-back'): void
   (e: 'search'): void
   (e: 'search-query', query: string): void
-  (e: 'rename-chat'): void
   (e: 'conversation-deleted', id: number): void
   (e: 'participant-added', participant: { id: number; user_id: number }): void
   (e: 'participant-removed', participantId: number): void
   (e: 'message-sent', message: any): void
+  (e: 'update:title', newTitle: string): void // опционально, если нужно обновить заголовок в родителе
 }>()
 
-// === Основные reactive-переменные ===
+// === Reactive ===
 const isMenuOpen = ref(false)
 const searchQuery = ref('')
 const showDetailsModal = ref(false)
@@ -59,23 +59,25 @@ const loadingDetails = ref(false)
 const justAddedUser = ref<string | null>(null)
 const currentUserId = ref<number | null>(null)
 
+// Переименование
+const isRenaming = ref(false)
+const renameInput = ref('')
+
 // Кэш пользователей
 const userCache = ref<Map<number, User>>(new Map())
 
-// === Проверка типа чата ===
+// === Computed ===
 const isGroupChat = computed(() => {
   const type = chatDetails.value?.conversation_type || props.conversation.conversation_type
   return ['group', 'group_chat'].includes(type) || String(type).toLowerCase().includes('group')
 })
 
-// === Заголовок ===
 const headerTitle = computed(() => {
   if (!isGroupChat.value) return props.title
   const count = chatDetails.value?.participants?.length || 0
   return `${props.title} (${count})`
 })
 
-// === Участники (с подстановкой имени) ===
 const participantsWithNames = computed(() => {
   if (!chatDetails.value?.participants) return []
   return chatDetails.value.participants.map(p => {
@@ -92,16 +94,19 @@ const participantsWithNames = computed(() => {
   })
 })
 
+const isRenameValid = computed(() => {
+  if (!chatDetails.value) return false
+  const trimmed = renameInput.value.trim()
+  return trimmed !== '' && trimmed !== chatDetails.value.name
+})
+
 // === Текущий пользователь ===
 async function loadCurrentUser() {
   try {
     const me = await authService.makeRequest<User>('/users/current', 'GET')
     if (me?.id && me?.username) {
       currentUserId.value = me.id
-      userCache.value.set(me.id, {
-        ...me,
-        online: me.online ?? true
-      })
+      userCache.value.set(me.id, { ...me, online: me.online ?? true })
       console.log('[ChatHeader] Текущий пользователь:', me.username)
     }
   } catch (error: any) {
@@ -110,12 +115,12 @@ async function loadCurrentUser() {
   }
 }
 
-// === Загрузка всех пользователей (для кэша) ===
+// === Кэш всех пользователей ===
 async function loadAllUsers() {
   if (userCache.value.size > 1) return
   try {
-    const response = await authService.makeRequest<{ users: User[] }>('/users?limit=100', 'GET')
-    response.users.forEach(u => userCache.value.set(u.id, u))
+    const { users } = await authService.makeRequest<{ users: User[] }>('/users?limit=100', 'GET')
+    users.forEach(u => userCache.value.set(u.id, u))
     console.log('[ChatHeader] Все пользователи загружены:', userCache.value.size)
   } catch (error) {
     console.error('[ChatHeader] Ошибка загрузки пользователей:', error)
@@ -128,7 +133,6 @@ async function fetchChatDetails() {
   loadingDetails.value = true
 
   try {
-    // Сначала грузим себя
     await loadCurrentUser()
     await loadAllUsers()
 
@@ -138,21 +142,17 @@ async function fetchChatDetails() {
     )
 
     console.log('[ChatHeader] Детали чата загружены:', details)
-
-    // Обновляем данные
     chatDetails.value = { ...details }
 
-    // Правим имена
+    // Заполняем кэш из участников (если имя есть)
     chatDetails.value.participants.forEach(p => {
-      const cached = userCache.value.get(p.user_id)
-      const isMe = p.user_id === currentUserId.value
-
-      if (isMe) {
-        p.username = 'Вы'
-      } else if (cached?.username) {
-        p.username = cached.username
-      } else if (!p.username) {
-        p.username = `User ${p.user_id}`
+      if (!userCache.value.has(p.user_id) && p.username) {
+        userCache.value.set(p.user_id, {
+          id: p.user_id,
+          username: p.username,
+          avatar_url: p.avatar,
+          online: false
+        })
       }
     })
 
@@ -189,6 +189,8 @@ function openChatDetails() {
 }
 function closeDetailsModal() {
   showDetailsModal.value = false
+  isRenaming.value = false
+  renameInput.value = ''
 }
 function openAddUser() {
   showUserSearch.value = true
@@ -221,8 +223,7 @@ async function removeParticipant(participantId: number) {
       const idx = chatDetails.value.participants.findIndex(p => p.id === participantId)
       if (idx !== -1) {
         chatDetails.value.participants.splice(idx, 1)
-        if (chatDetails.value.participants_count)
-          chatDetails.value.participants_count--
+        if (chatDetails.value.participants_count) chatDetails.value.participants_count--
       }
     }
 
@@ -267,8 +268,7 @@ async function handleUserSelect(user: { id: number; username: string }) {
 
     userCache.value.set(user.id, { id: user.id, username: user.username })
     chatDetails.value?.participants.push(newParticipant)
-    if (chatDetails.value?.participants_count)
-      chatDetails.value.participants_count++
+    if (chatDetails.value?.participants_count) chatDetails.value.participants_count++
 
     justAddedUser.value = user.username
     emit('participant-added', response.participant)
@@ -277,6 +277,46 @@ async function handleUserSelect(user: { id: number; username: string }) {
     setTimeout(fetchChatDetails, 500)
   } catch (error: any) {
     alert(error.response?.data?.error || 'Не удалось добавить участника')
+  }
+}
+
+// === Переименование ===
+function startRename() {
+  if (!chatDetails.value) return
+  renameInput.value = chatDetails.value.name
+  isRenaming.value = true
+  nextTick(() => {
+    const input = document.querySelector('.rename-input') as HTMLInputElement
+    input?.focus()
+  })
+}
+
+function cancelRename() {
+  isRenaming.value = false
+  renameInput.value = ''
+}
+
+async function saveRename() {
+  if (!chatDetails.value || !isRenameValid.value) return
+
+  try {
+    const response = await authService.makeRequest<{
+      success: boolean
+      message: string
+      name: string
+    }>(
+      `/conversations/${props.conversation.id}/rename`,
+      'PATCH',
+      { name: renameInput.value.trim() }
+    )
+
+    if (response.success) {
+      chatDetails.value.name = response.name
+      emit('update:title', response.name) // если нужно обновить в родителе
+      cancelRename()
+    }
+  } catch (error: any) {
+    alert(error.response?.data?.message || 'Не удалось переименовать чат')
   }
 }
 </script>
@@ -309,7 +349,7 @@ async function handleUserSelect(user: { id: number; username: string }) {
             <button @click.stop="openChatDetails"><i class="fas fa-info-circle"></i> Детали чата</button>
             <button v-if="isGroupChat" @click="openAddUser"><i class="fas fa-user-plus"></i> Добавить участника</button>
             <button v-if="isGroupChat" @click="deleteConversation"><i class="fas fa-trash"></i> Удалить диалог</button>
-            <button v-if="isGroupChat" @click="emit('rename-chat')"><i class="fas fa-edit"></i> Переименовать чат</button>
+            <!-- Переименование теперь в модалке, убираем из меню -->
           </div>
         </transition>
       </div>
@@ -329,7 +369,30 @@ async function handleUserSelect(user: { id: number; username: string }) {
           <div v-if="loadingDetails" class="loading">Загрузка...</div>
 
           <div v-else-if="chatDetails" class="chat-info">
-            <div class="chat-name"><strong>{{ chatDetails.name }}</strong></div>
+            <!-- Название с редактированием -->
+            <div class="chat-name">
+              <div v-if="!isRenaming" class="name-display">
+                <strong>{{ chatDetails.name }}</strong>
+                <button v-if="isGroupChat" @click.stop="startRename" class="edit-name-btn">
+                  <i class="fas fa-edit"></i>
+                </button>
+              </div>
+
+              <div v-else class="name-edit">
+                <input
+                  v-model="renameInput"
+                  @keyup.enter="saveRename"
+                  @keyup.esc="cancelRename"
+                  placeholder="Название чата"
+                  class="rename-input"
+                  autofocus
+                />
+                <div class="name-edit-actions">
+                  <button @click="saveRename" :disabled="!isRenameValid" class="save-btn">Сохранить</button>
+                  <button @click="cancelRename" class="cancel-btn">Отмена</button>
+                </div>
+              </div>
+            </div>
 
             <div class="info-grid">
               <div><strong>Тип:</strong> {{ isGroupChat ? 'Групповой' : 'Личный' }}</div>
@@ -382,7 +445,6 @@ async function handleUserSelect(user: { id: number; username: string }) {
 </template>
 
 <style scoped>
-
 .chat-header {
   height: 3.55rem;
   background: #fff;
@@ -512,13 +574,73 @@ async function handleUserSelect(user: { id: number; username: string }) {
   color: #999;
   cursor: pointer;
 }
+
+/* Название чата */
 .chat-name {
   text-align: center;
+  margin: 0.5rem 0;
+}
+.name-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   font-size: 1.1rem;
   font-weight: 600;
-  margin: 0.5rem 0;
   color: #1e293b;
 }
+.edit-name-btn {
+  background: none;
+  border: none;
+  color: #0078ff;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: 4px;
+}
+.edit-name-btn:hover { background: rgba(0, 120, 255, 0.1); }
+.name-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+.rename-input {
+  padding: 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+.rename-input:focus {
+  outline: none;
+  border-color: #0078ff;
+  box-shadow: 0 0 0 2px rgba(0, 120, 255, 0.1);
+}
+.name-edit-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+.name-edit-actions button {
+  padding: 0.4rem 0.7rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.save-btn {
+  background: #0078ff;
+  color: white;
+}
+.save-btn:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+.cancel-btn {
+  background: #f1f5f9;
+  color: #666;
+}
+
 .info-grid {
   display: grid;
   gap: 0.5rem;
