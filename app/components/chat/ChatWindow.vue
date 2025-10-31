@@ -214,17 +214,13 @@ defineExpose({ scrollToMessage })
 </template>
 
 <style scoped>
-/* ... твой стиль ... */
-</style>
-
-<style scoped>
 .chat-window {
   display: flex;
   flex-direction: column;
   height: 100%;
   background: #f1f5f9;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: visible !important;
   box-sizing: border-box;
 }
 

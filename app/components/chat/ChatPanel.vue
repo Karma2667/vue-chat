@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, defineProps, defineEmits, watch } from 'vue'
+import { ref, computed, defineProps, defineEmits, watch, toRef } from 'vue'
 import DialogList from './DialogList.vue'
 import ChatWindow from './ChatWindow.vue'
 import ChatListHeader from './ChatListHeader.vue'
@@ -64,35 +64,41 @@ const emit = defineEmits<{
   (e: 'participant-added', participant: { id: number; user_id: number }): void
 }>()
 
+// === Модалка пересылки ===
 const forwardDialogs = ref<number[]>([])
 const isForwardModalOpen = ref(false)
 const messageToForward = ref<number | null>(null)
 
-const activeConversation = computed<Conversation | null>(() => {
-  if (!props.activeChat) return null
-  return {
-    id: props.activeChat.id,
-    name: props.activeChat.from,
-    conversation_type: props.activeChat.type === 'group' ? 'group' : 'private',
-    owner_id: null,
-    created_at: '',
-    updated_at: '',
-    messages_count: 0,
-    participants_count: 0,
-    is_owner: false,
-    participants: [],
-    last_message_preview: props.activeChat.lastMessage
-      ? {
-          content: props.activeChat.lastMessage.content,
-          created_at: props.activeChat.lastMessage.created_at,
-          user_id: 0,
-          username: props.activeChat.lastMessage.username,
-        }
-      : undefined,
-  }
-})
+// === Реактивные ссылки на props ===
+const chatsRef = toRef(props, 'chats')
 
-const selectedDialogs = computed(() => forwardDialogs.value)
+// === Обновление lastMessage — БЕЗ ЦИКЛА! ===
+watch(
+  chatsRef,
+  (newChats) => {
+    if (!newChats || !props.dialogs.length) return
+
+    const updatedDialogs = props.dialogs.map(dialog => {
+      const messages = newChats[dialog.id]
+      if (!messages || messages.length === 0) return dialog
+
+      // TS: "lastMsg точно есть"
+      const lastMsg = messages[messages.length - 1]!
+
+      return {
+        ...dialog,
+        lastMessage: {
+          content: lastMsg.text,
+          created_at: lastMsg.time,
+          username: lastMsg.author,
+        },
+      }
+    })
+
+    emit('update-dialogs', updatedDialogs)
+  },
+  { deep: true }
+)
 
 // === Пересылка ===
 function openForwardModal(messageId: number) {
@@ -116,12 +122,10 @@ function handleForward() {
 }
 
 function toggleDialogSelection(dialogId: number) {
-  const index = forwardDialogs.value.indexOf(dialogId)
-  if (index === -1) {
-    forwardDialogs.value = [...forwardDialogs.value, dialogId]
-  } else {
-    forwardDialogs.value = forwardDialogs.value.filter(id => id !== dialogId)
-  }
+  const idx = forwardDialogs.value.indexOf(dialogId)
+  forwardDialogs.value = idx === -1
+    ? [...forwardDialogs.value, dialogId]
+    : forwardDialogs.value.filter(id => id !== dialogId)
 }
 
 // === Удаление диалога ===
@@ -136,48 +140,59 @@ function handleParticipantAdded(participant: { id: number; user_id: number }) {
   emit('participant-added', participant)
 }
 
-// === Обновление lastMessage ===
-watch(
-  () => props.chats,
-  (newChats) => {
-    const updatedDialogs: Dialog[] = props.dialogs.map(dialog => {
-      const messages = newChats[dialog.id]
-      const lastMsg = messages?.[messages.length - 1]
-      if (!lastMsg) return dialog
-
-      return {
-        ...dialog,
-        lastMessage: {
-          content: lastMsg.text,
-          created_at: lastMsg.time,
-          username: lastMsg.author,
-        },
-      }
-    })
-    emit('update-dialogs', updatedDialogs)
-  },
-  { deep: true }
-)
-const activeChatTitle = computed(() => {
-  return props.activeChat?.from || 'Чат'
-})
-
+// === Обновление названия чата — БЕЗ ЦИКЛА ===
 function handleTitleUpdate(newTitle: string) {
   if (!props.activeChat) return
 
-  // Обновляем dialogs
-  const updatedDialogs = props.dialogs.map(d =>
-    d.id === props.activeChat!.id ? { ...d, from: newTitle } : d
-  )
-  emit('update-dialogs', updatedDialogs)
+  const activeChat = props.activeChat as Dialog
 
-  // Обновляем activeChat (реактивно)
-  props.activeChat.from = newTitle
+  // Проверяем, изменилось ли название
+  if (activeChat.from === newTitle) return
+
+  const updatedDialogs = props.dialogs.map(d =>
+    d.id === activeChat.id ? { ...d, from: newTitle } : d
+  )
+
+  emit('update-dialogs', updatedDialogs)
 }
+
+// === Заголовок ===
+const activeChatTitle = computed(() => props.activeChat?.from || 'Чат')
+
+// === activeConversation ===
+const activeConversation = computed<Conversation | null>(() => {
+  if (!props.activeChat) return null
+
+  const chatId = props.activeChat.id
+  const messages = props.chats[chatId] ?? []
+  const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null
+
+  return {
+    id: chatId,
+    name: props.activeChat.from,
+    conversation_type: props.activeChat.type === 'group' ? 'group' : 'private',
+    owner_id: null,
+    created_at: '',
+    updated_at: '',
+    messages_count: messages.length,
+    participants_count: 0,
+    is_owner: false,
+    participants: [],
+    last_message_preview: lastMsg
+      ? {
+          content: lastMsg.text,
+          created_at: lastMsg.time,
+          user_id: 0,
+          username: lastMsg.author,
+        }
+      : undefined,
+  }
+})
 </script>
 
 <template>
   <div class="chat-panel" :class="{ 'is-open': props.isOpen }">
+    <!-- Хедеры -->
     <transition name="screen-fade" mode="out-in">
       <div :key="`${props.currentScreen}-${props.isSearchMode}`">
         <ChatListHeader
@@ -202,6 +217,7 @@ function handleTitleUpdate(newTitle: string) {
       </div>
     </transition>
 
+    <!-- Контент -->
     <transition name="screen-fade" mode="out-in">
       <div :key="props.currentScreen" class="chat-content">
         <DialogList
@@ -237,7 +253,7 @@ function handleTitleUpdate(newTitle: string) {
             <label>
               <input
                 type="checkbox"
-                :checked="selectedDialogs.includes(dialog.id)"
+                :checked="forwardDialogs.includes(dialog.id)"
                 @change="toggleDialogSelection(dialog.id)"
               />
               {{ dialog.from }}
@@ -245,7 +261,9 @@ function handleTitleUpdate(newTitle: string) {
           </li>
         </ul>
         <div class="modal-actions">
-          <button @click="handleForward" :disabled="selectedDialogs.length === 0">Переслать</button>
+          <button @click="handleForward" :disabled="forwardDialogs.length === 0">
+            Переслать
+          </button>
           <button @click="closeForwardModal">Отмена</button>
         </div>
       </div>
@@ -254,7 +272,6 @@ function handleTitleUpdate(newTitle: string) {
 </template>
 
 <style scoped>
-/* ... (все стили из предыдущей версии) ... */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -362,11 +379,13 @@ function handleTitleUpdate(newTitle: string) {
 .screen-fade-leave-active {
   transition: all 0.25s ease;
 }
+
 .screen-fade-enter-from,
 .screen-fade-leave-to {
   opacity: 0;
   transform: translateX(10px);
 }
+
 .screen-fade-enter-to,
 .screen-fade-leave-from {
   opacity: 1;

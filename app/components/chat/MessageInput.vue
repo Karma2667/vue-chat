@@ -1,340 +1,408 @@
 <script setup lang="ts">
-import { ref, defineProps, defineEmits, nextTick, watch } from 'vue';
-import EmojiPicker from './EmojiPicker.vue';
-import AttachmentMessage from './AttachmentMessage.vue';
-import ReplyMessage from './ReplyMessage.vue';
+import { ref, defineProps, defineEmits, nextTick, watch } from 'vue'
+import EmojiPicker from './EmojiPicker.vue'
+import AttachmentMessage from './AttachmentMessage.vue'
 
 const props = defineProps<{
-  replyingText?: string;
-  replyingAuthor?: string;
-  replyingId?: number;
-  editingText?: string;
-  editingId?: number;
-}>();
+  replyingText?: string
+  replyingAuthor?: string
+  replyingId?: number
+  editingText?: string
+  editingId?: number
+}>()
 
 const emit = defineEmits<{
-  (e: 'send', message: string, attachments?: File[]): void;
-  (e: 'voice'): void;
-  (e: 'video'): void;
-  (e: 'cancel-reply'): void;
-  (e: 'scroll-to-reply', id: number): void;
-  (e: 'cancel-edit'): void;
-  (e: 'edit', id: number, message: string): void;
-}>();
+  (e: 'send', message: string, attachments?: File[]): void
+  (e: 'cancel-reply'): void
+  (e: 'cancel-edit'): void
+  (e: 'edit', id: number, message: string): void
+}>()
 
-// ========================
-// State
-// ========================
-const message = ref('');
-const showEmojiPicker = ref(false);
+// === Состояние ===
+const message = ref('')
+const showEmojiPicker = ref(false)
 const attachments = ref<
   { type: 'image' | 'video' | 'file'; url: string; name: string; size: string }[]
->([]);
-const files = ref<File[]>([]);
-const inputRef = ref<HTMLInputElement | null>(null);
-const fileInput = ref<HTMLInputElement | null>(null);
-const isEditing = ref(false);
+>([])
+const files = ref<File[]>([])
+const inputRef = ref<HTMLInputElement | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
+const isEditing = ref(false)
 
-// ========================
-// Watchers
-// ========================
+// === Watch: редактирование ===
 watch(
   () => props.editingText,
   (newText) => {
     if (newText !== undefined) {
-      message.value = newText;
-      nextTick(() => inputRef.value?.focus());
+      message.value = newText
+      nextTick(() => inputRef.value?.focus())
     }
   }
-);
+)
 
-// ========================
-// Methods
-// ========================
+// === Отправка ===
 async function sendMessage() {
-  const text = message.value.trim();
-  const hasFiles = files.value.length > 0;
+  const text = message.value.trim()
+  const hasFiles = files.value.length > 0
 
-  if (!text && !hasFiles) return;
+  if (!text && !hasFiles) return
 
-  let content = text;
-  if (!text && hasFiles) {
-    content = files.value[0]?.name || 'Вложение';
-  }
+  const content = text || files.value[0]?.name || 'Вложение'
 
   if (props.editingId !== undefined) {
-    isEditing.value = true;
+    isEditing.value = true
     try {
-      emit('edit', props.editingId, content);
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      emit('edit', props.editingId, content)
+      await new Promise(resolve => setTimeout(resolve, 500))
     } finally {
-      isEditing.value = false;
+      isEditing.value = false
     }
   } else {
-    emit('send', content, files.value);
+    emit('send', content, files.value)
   }
 
-  clearInput();
+  clearInput()
 }
 
 function clearInput() {
-  message.value = '';
-  attachments.value.forEach((a) => URL.revokeObjectURL(a.url));
-  attachments.value = [];
-  files.value = [];
+  message.value = ''
+  attachments.value.forEach(a => URL.revokeObjectURL(a.url))
+  attachments.value = []
+  files.value = []
 }
 
+// === Эмодзи ===
 function toggleEmojiPicker() {
-  showEmojiPicker.value = !showEmojiPicker.value;
+  console.log('TOGGLE EMOJI PICKER:', !showEmojiPicker.value)
+  showEmojiPicker.value = !showEmojiPicker.value
 }
 
 function insertEmoji(emoji: string) {
-  const input = inputRef.value;
-  if (!input) return;
-  const start = input.selectionStart || 0;
-  const end = input.selectionEnd || 0;
-  message.value = message.value.slice(0, start) + emoji + message.value.slice(end);
+  const input = inputRef.value
+  if (!input) return
+  const start = input.selectionStart || 0
+  const end = input.selectionEnd || 0
+  message.value = message.value.slice(0, start) + emoji + message.value.slice(end)
   nextTick(() => {
-    input.focus();
-    input.setSelectionRange(start + emoji.length, start + emoji.length);
-  });
+    input.focus()
+    input.setSelectionRange(start + emoji.length, start + emoji.length)
+  })
+  showEmojiPicker.value = false
 }
 
+// === Вложения ===
 function openFileDialog() {
-  fileInput.value?.click();
+  fileInput.value?.click()
 }
 
 function handleFiles(event: Event) {
-  const fileList = (event.target as HTMLInputElement).files;
-  if (!fileList) return;
+  const fileList = (event.target as HTMLInputElement).files
+  if (!fileList) return
 
-  Array.from(fileList).forEach((file) => {
-    const url = URL.createObjectURL(file);
-    let type: 'image' | 'video' | 'file' = 'file';
-    if (file.type.startsWith('image/')) type = 'image';
-    else if (file.type.startsWith('video/')) type = 'video';
+  Array.from(fileList).forEach(file => {
+    const url = URL.createObjectURL(file)
+    let type: 'image' | 'video' | 'file' = 'file'
+    if (file.type.startsWith('image/')) type = 'image'
+    else if (file.type.startsWith('video/')) type = 'video'
 
     attachments.value.push({
       type,
       url,
       name: file.name,
       size: `${(file.size / 1024).toFixed(1)} KB`,
-    });
-    files.value.push(file);
-  });
+    })
+    files.value.push(file)
+  })
+
+  // Сброс input, чтобы можно было загрузить тот же файл
+  if (fileInput.value) fileInput.value.value = ''
 }
 
 function removeAttachment(index: number) {
-  const item = attachments.value[index];
-  if (!item) return;
-  URL.revokeObjectURL(item.url);
-  attachments.value.splice(index, 1);
-  files.value.splice(index, 1);
+  const item = attachments.value[index]
+  if (item) URL.revokeObjectURL(item.url)
+  attachments.value.splice(index, 1)
+  files.value.splice(index, 1)
 }
 
+// === Ответ / Редактирование ===
 function cancelReply() {
-  emit('cancel-reply');
+  emit('cancel-reply')
 }
 
 function cancelEdit() {
-  emit('cancel-edit');
-  message.value = '';
-}
-
-function handleScrollToReply(id: number) {
-  emit('scroll-to-reply', id);
+  emit('cancel-edit')
+  message.value = ''
 }
 </script>
 
 <template>
-  <div class="message-input">
-    <!-- Reply block -->
-    <div v-if="props.replyingText" class="replying-to">
-      <ReplyMessage
-        :id="props.replyingId!"
-        :author="props.replyingAuthor"
-        :text="props.replyingText"
-        @scroll-to-reply="handleScrollToReply"
+  <div class="message-input" @click.stop>
+    <!-- Ответ -->
+    <div v-if="props.replyingText" class="reply-block">
+      <div class="reply-preview">
+        <span class="reply-author">{{ props.replyingAuthor }}</span>
+        <span class="reply-text">{{ props.replyingText }}</span>
+      </div>
+      <button class="cancel-btn" @click.stop="cancelReply">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <!-- Редактирование -->
+    <div v-if="props.editingId !== undefined" class="edit-block">
+      <span>Редактирование</span>
+      <button class="cancel-btn" @click.stop="cancelEdit">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <!-- Вложения -->
+    <transition-group name="fade" tag="div" class="attachments-preview">
+      <div v-for="(a, i) in attachments" :key="a.url" class="attachment-item">
+        <AttachmentMessage :attachment="a" />
+        <button class="remove-btn" @click.stop="removeAttachment(i)">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </transition-group>
+
+    <!-- Поле ввода -->
+    <div class="input-row">
+      <!-- Кнопка вложений -->
+      <button class="icon-btn" @click.stop="openFileDialog" title="Вложение">
+        <i class="fas fa-paperclip"></i>
+      </button>
+      <input type="file" multiple hidden ref="fileInput" @change="handleFiles" />
+
+      <!-- Текст -->
+      <input
+        ref="inputRef"
+        v-model="message"
+        @keyup.enter="sendMessage"
+        type="text"
+        :placeholder="props.editingId !== undefined ? 'Редактировать...' : 'Сообщение...'"
+        class="text-input"
+        @click.stop
       />
-      <button class="cancel-btn" @click="cancelReply">
-        <i class="fas fa-times"></i>
-      </button>
-    </div>
 
-    <!-- Editing block -->
-    <div v-if="props.editingId !== undefined" class="editing-to">
-      <span>Редактирование сообщения</span>
-      <button class="cancel-btn" @click="cancelEdit">
-        <i class="fas fa-times"></i>
-      </button>
-    </div>
-
-    <!-- File upload -->
-    <button class="icon-btn" @click="openFileDialog">
-      <i class="fas fa-paperclip"></i>
-    </button>
-    <input type="file" multiple hidden ref="fileInput" @change="handleFiles" />
-
-    <!-- Text input -->
-    <input
-      ref="inputRef"
-      v-model="message"
-      @keyup.enter="sendMessage"
-      type="text"
-      :placeholder="props.editingId !== undefined ? 'Редактировать сообщение...' : 'Напишите сообщение...'"
-      class="input"
-    />
-
-    <!-- Right icons -->
-    <div class="right-icons">
-      <button class="icon-btn"><i class="fas fa-font"></i></button>
-      <button class="icon-btn" @click="toggleEmojiPicker">
+      <!-- Эмодзи -->
+      <button
+        class="icon-btn"
+        @click.stop.prevent="toggleEmojiPicker"
+        title="Эмодзи"
+        type="button"
+      >
         <i class="far fa-smile"></i>
       </button>
-      <button class="icon-btn" @click="emit('video')">
-        <i class="fas fa-video"></i>
-      </button>
+
+      <!-- Отправка -->
       <button
         class="icon-btn send-btn"
-        @click="sendMessage"
+        @click.stop="sendMessage"
         :disabled="isEditing || (!message.trim() && files.length === 0)"
+        :title="isEditing ? 'Отправка...' : 'Отправить'"
       >
         <i v-if="isEditing" class="fas fa-spinner fa-spin"></i>
         <i v-else class="fas fa-paper-plane"></i>
       </button>
     </div>
 
-    <!-- Emoji picker -->
-    <transition name="fade">
-      <div v-if="showEmojiPicker" class="emoji-picker-wrapper">
-        <EmojiPicker @select="insertEmoji" />
-      </div>
-    </transition>
-
-    <!-- Attachments preview -->
-    <transition-group name="fade" tag="div" class="attachments-preview">
-      <div v-for="(a, index) in attachments" :key="a.url" class="attachment-wrapper">
-        <AttachmentMessage :attachment="a" />
-        <button class="remove-btn" @click="removeAttachment(index)">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-    </transition-group>
+    <teleport to="body">
+      <transition name="picker">
+        <div
+          v-if="showEmojiPicker"
+          class="emoji-picker-container"
+          @click.stop
+          @mousedown.stop
+          @mouseup.stop
+          @touchstart.stop
+          style="pointer-events: auto; position: fixed; z-index: 2147483647;"
+        >
+          <EmojiPicker @select="insertEmoji" />
+        </div>
+      </transition>
+    </teleport>
   </div>
 </template>
 
 <style scoped>
 .message-input {
-  position: relative;
-  display: flex;
-  align-items: center;
   background: #fff;
-  padding: 0.65rem 0.9rem;
+  padding: 0.75rem;
   border-top: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.04);
-  flex-wrap: wrap;
-  max-width: 100%;
-  overflow-x: hidden;
-  box-sizing: border-box;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+  position: relative;
 }
 
-.replying-to,
-.editing-to {
+.reply-block,
+.edit-block {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   background: #f1f5f9;
-  padding: 0.4rem 0.6rem;
+  padding: 0.5rem 0.75rem;
   border-radius: 8px;
-  margin-bottom: 4px;
-  font-size: 0.85rem;
-  width: 100%;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  color: #475569;
+}
+
+.reply-author {
+  font-weight: 600;
+  margin-right: 0.5rem;
+}
+
+.reply-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 70%;
 }
 
 .cancel-btn {
   background: none;
   border: none;
-  color: #ff4444;
+  color: #ef4444;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 1rem;
+  padding: 0.25rem;
+  border-radius: 50%;
+  transition: background 0.2s;
 }
 
-.input {
-  flex: 1;
-  border: none;
-  outline: none;
-  padding: 0.6rem 1rem;
-  font-size: 0.95rem;
-  border-radius: 9999px;
-  background: var(--bg-second, #f6f7f9);
-  color: var(--tx-first, #222);
-  margin: 0 0.5rem;
-  max-width: 100%;
+.cancel-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
 }
 
-.right-icons {
+.input-row {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.5rem;
 }
 
 .icon-btn {
   background: none;
   border: none;
-  color: var(--tx-second, #777);
-  font-size: 1rem;
+  color: #64748b;
+  font-size: 1.1rem;
   cursor: pointer;
-  padding: 0.1rem;
+  padding: 0.5rem;
   border-radius: 50%;
-  transition: background 0.2s, color 0.2s;
+  transition: all 0.2s;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .icon-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--tx-first, #000);
+  background: #f1f5f9;
+  color: #1e293b;
 }
 
 .send-btn {
   color: #0078ff;
 }
 
+.send-btn:hover:not(:disabled) {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.send-btn:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.text-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 0.6rem 1rem;
+  font-size: 0.95rem;
+  border-radius: 9999px;
+  background: #f6f7f9;
+  color: #1e293b;
+  min-width: 0;
+}
+
+.text-input::placeholder {
+  color: #94a3b8;
+}
+
 .attachments-preview {
   display: flex;
-  gap: 8px;
-  margin-top: 6px;
-  width: 100%;
-  max-width: 100%;
-  overflow-x: hidden;
   flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
-.attachment-wrapper {
+.attachment-item {
   position: relative;
-  max-width: 100%;
-}
-
-.attachment-wrapper img,
-.attachment-wrapper video {
-  max-width: 100%;
-  height: auto;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .remove-btn {
   position: absolute;
   top: 4px;
   right: 4px;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
   border: none;
+  width: 20px;
+  height: 20px;
+  font-size: 0.7rem;
   border-radius: 50%;
-  color: #fff;
-  width: 18px;
-  height: 18px;
-  font-size: 0.65rem;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .remove-btn:hover {
-  background: rgba(255, 0, 0, 0.6);
+  background: rgba(239, 68, 68, 0.8);
+}
+
+
+.emoji-picker-container {
+  position: fixed;
+  bottom: 60px;
+  left: 60%;
+  transform: translateX(-50%);
+  width: 340px;
+  max-width: 90vw;
+  z-index: 2147483647;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  pointer-events: auto; /* ← ВАЖНО */
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+.picker-enter-active,
+.picker-leave-active {
+  transition: all 0.2s ease;
+}
+
+.picker-enter-from,
+.picker-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(10px) scale(0.95);
 }
 
 .fade-enter-active,
@@ -345,29 +413,5 @@ function handleScrollToReply(id: number) {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
-}
-.emoji-picker-wrapper {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  right: 0;
-  z-index: 10000; /* ВЫШЕ ВСЕГО */
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px 12px 0 0;
-  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.15);
-  overflow: hidden;
-  margin-bottom: 4px;
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: all 0.2s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-  transform: translateY(10px);
 }
 </style>
