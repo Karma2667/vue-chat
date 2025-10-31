@@ -2,7 +2,6 @@
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import { authService } from '~/utils/auth'
 import type { Message } from '~/utils/messages'
-import type { ChatMessage } from '~/composables/useChat'
 
 interface UserSearchProps {
   conversationId?: number

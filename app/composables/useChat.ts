@@ -224,5 +224,3 @@ const handleSendMessage = async (
     isConnected,
   }
 }
-
-export type { ChatMessage } from './useChatState'
