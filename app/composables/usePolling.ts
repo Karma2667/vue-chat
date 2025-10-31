@@ -1,6 +1,6 @@
 // composables/usePolling.ts
 import { ref, watch, onMounted, onUnmounted, type Ref } from 'vue'
-import type { ChatMessage } from './useChatState'
+import type { ChatMessage } from '../types/index'
 import { authService } from '~/utils/auth'
 import { fetchMessages, sendMessage as httpSendMessage, editMessage as httpEditMessage } from '~/utils/messages'
 

@@ -1,7 +1,7 @@
 // src/composables/useChat.ts
 import { ref, watch } from 'vue'
 import { usePolling } from './usePolling'
-import type { ChatMessage } from './useChatState'
+import type { ChatMessage } from '../types/index'
 import { authService } from '~/utils/auth'
 
 export function useChat() {
@@ -225,4 +225,4 @@ const handleSendMessage = async (
   }
 }
 
-export type { ChatMessage } from './useChatState'
+export type { ChatMessage } from '../types/index'

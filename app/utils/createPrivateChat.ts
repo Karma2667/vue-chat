@@ -1,12 +1,7 @@
 // utils/createPrivateChat.ts
 import { authService } from './auth';
+import type { Conversation } from '@/types'
 
-export interface Conversation {
-  id: number;
-  conversation_type: string;
-  users?: { id: number; username: string }[];
-  name?: string;
-}
 
 interface CreateChatResponse {
   conversation: Conversation;

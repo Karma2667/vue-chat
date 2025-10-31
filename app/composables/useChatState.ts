@@ -1,29 +1,8 @@
 // src/composables/useChatState.ts
 import { reactive, toRefs, computed, onMounted } from 'vue';
 import { authService } from '~/utils/auth';
+import type { Dialog, ChatMessage } from '@/types'
 
-export interface Dialog {
-  id: number;
-  from: string;
-  type?: string;
-  lastMessage?: { content: string; created_at: string; username: string };
-}
-
-export interface ChatMessage {
-  id: number;
-  text: string;
-  time: string;
-  author: string;
-  self: boolean;
-  reply: { id: number; text: string; author: string } | null;
-  attachments: Array<{
-    type: 'image' | 'video' | 'file';
-    url: string;
-    name?: string;
-    size?: string;
-  }>;
-  edited?: boolean;
-}
 
 interface ChatState {
   currentUserId: number | null;

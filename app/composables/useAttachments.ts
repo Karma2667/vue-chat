@@ -1,6 +1,6 @@
 // src/composables/useAttachments.ts
 import type { Ref } from 'vue';
-import type { ChatMessage } from './useChatState';
+import type { ChatMessage } from '../types/index';
 
 const urlCache = new Map<string, string>();
 

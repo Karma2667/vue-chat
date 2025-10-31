@@ -2,7 +2,7 @@
 import type { Ref } from 'vue';
 import { ref } from 'vue';
 import { searchMessages, type Message } from '~/utils/messages';
-import type { ChatMessage } from './useChatState';
+import type { ChatMessage, Dialog } from '../types/index';
 import { useAttachments } from './useAttachments';
 
 const attachmentUrlCache = new Map<string, string>();

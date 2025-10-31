@@ -73,7 +73,6 @@ function clearInput() {
 
 // === Эмодзи ===
 function toggleEmojiPicker() {
-  console.log('TOGGLE EMOJI PICKER:', !showEmojiPicker.value)
   showEmojiPicker.value = !showEmojiPicker.value
 }
 
@@ -114,7 +113,6 @@ function handleFiles(event: Event) {
     files.value.push(file)
   })
 
-  // Сброс input, чтобы можно было загрузить тот же файл
   if (fileInput.value) fileInput.value.value = ''
 }
 
@@ -167,7 +165,7 @@ function cancelEdit() {
       </div>
     </transition-group>
 
-    <!-- Поле ввода -->
+    <!-- Поле ввода + кнопки -->
     <div class="input-row">
       <!-- Кнопка вложений -->
       <button class="icon-btn" @click.stop="openFileDialog" title="Вложение">
@@ -208,21 +206,12 @@ function cancelEdit() {
       </button>
     </div>
 
-    <teleport to="body">
-      <transition name="picker">
-        <div
-          v-if="showEmojiPicker"
-          class="emoji-picker-container"
-          @click.stop
-          @mousedown.stop
-          @mouseup.stop
-          @touchstart.stop
-          style="pointer-events: auto; position: fixed; z-index: 2147483647;"
-        >
-          <EmojiPicker @select="insertEmoji" />
-        </div>
-      </transition>
-    </teleport>
+    <!-- ЭМОДЗИ-ПИКЕР (в потоке, без teleport) -->
+    <transition name="slide-up">
+      <div v-if="showEmojiPicker" class="emoji-picker-wrapper" @click.stop>
+        <EmojiPicker @select="insertEmoji" />
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -233,6 +222,9 @@ function cancelEdit() {
   border-top: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .reply-block,
@@ -243,7 +235,6 @@ function cancelEdit() {
   background: #f1f5f9;
   padding: 0.5rem 0.75rem;
   border-radius: 8px;
-  margin-bottom: 0.5rem;
   font-size: 0.875rem;
   color: #475569;
 }
@@ -335,8 +326,9 @@ function cancelEdit() {
 .attachments-preview {
   display: flex;
   flex-wrap: wrap;
+  max-width: 150px;
+  max-height:150px;
   gap: 0.5rem;
-  margin-bottom: 0.5rem;
 }
 
 .attachment-item {
@@ -367,42 +359,39 @@ function cancelEdit() {
   background: rgba(239, 68, 68, 0.8);
 }
 
-
-.emoji-picker-container {
-  position: fixed;
-  bottom: 60px;
-  left: 60%;
-  transform: translateX(-50%);
-  width: 340px;
-  max-width: 90vw;
-  z-index: 2147483647;
-  background: white;
+/* === ЭМОДЗИ-ПИКЕР В ПОТОКЕ === */
+.emoji-picker-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  margin-top: 0.5rem;
   border-radius: 16px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
   overflow: hidden;
-  pointer-events: auto; /* ← ВАЖНО */
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.15);
+  background: white;
+  animation: slideUp 0.2s ease-out;
 }
 
-@keyframes popIn {
+@keyframes slideUp {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(10px) scale(0.95);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
-    transform: translateX(-50%) translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 
-.picker-enter-active,
-.picker-leave-active {
+.slide-up-enter-active,
+.slide-up-leave-active {
   transition: all 0.2s ease;
 }
 
-.picker-enter-from,
-.picker-leave-to {
+.slide-up-enter-from,
+.slide-up-leave-to {
   opacity: 0;
-  transform: translateX(-50%) translateY(10px) scale(0.95);
+  transform: translateY(10px);
 }
 
 .fade-enter-active,

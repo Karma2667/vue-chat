@@ -1,6 +1,6 @@
 // composables/useActionCable.ts
 import { ref, computed, watch, onMounted, onUnmounted, type Ref } from 'vue'
-import type { ChatMessage } from './useChatState'
+import type { ChatMessage } from '../types/index'
 import { createConsumer } from '@rails/actioncable'
 
 export function useActionCable(

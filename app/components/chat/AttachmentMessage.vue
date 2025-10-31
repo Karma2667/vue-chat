@@ -98,8 +98,8 @@ function handleClick() {
 
 /* ФИКСИРОВАННЫЙ КОНТЕЙНЕР */
 .media-wrapper {
-  width: 300px;
-  height: 300px;
+  width: 150px;
+  height: 150px;
   background: #000;
   display: flex;
   justify-content: center;

@@ -2,35 +2,35 @@
 import { ref, nextTick } from 'vue'
 import UserSearch from './UserSearch.vue'
 
-const activeTab = ref('all')
+const activeTab = ref<'all' | 'group' | 'personal'>('all')
 const showGroupModal = ref(false)
 const groupName = ref('')
 const selectedUsers = ref<{ id: number; username: string }[]>([])
 const step = ref<'name' | 'users'>('name')
-const showUserSearch = ref(false) // ← Показывать UserSearch только после клика на кнопку
+const showUserSearch = ref(false)
 
 const tabs = [
   { key: 'all', label: 'Все' },
   { key: 'group', label: 'Групповые' },
   { key: 'personal', label: 'Личные' },
-]
+] as const
 
 const emit = defineEmits<{
-  (e: 'tab-change', key: string): void
+  (e: 'tab-change', key: 'all' | 'group' | 'personal'): void
   (e: 'user-search'): void
   (e: 'create-group-chat', name: string, userIds: number[]): void
 }>()
 
 const tabsContainer = ref<HTMLDivElement | null>(null)
-const tabRefs: (HTMLButtonElement | null)[] = []
+const tabRefs = ref<(HTMLButtonElement | null)[]>([])
 
-function selectTab(tabKey: string, index: number) {
+function selectTab(tabKey: typeof tabs[number]['key'], index: number) {
   activeTab.value = tabKey
   emit('tab-change', tabKey)
 
   nextTick(() => {
     const container = tabsContainer.value
-    const tabEl = tabRefs[index]
+    const tabEl = tabRefs.value[index]
     if (!container || !tabEl) return
 
     const tabLeft = tabEl.offsetLeft
@@ -80,7 +80,6 @@ function handleUserSelect(user: { id: number; username: string }) {
   if (!selectedUsers.value.some(u => u.id === user.id)) {
     selectedUsers.value.push(user)
   }
-  // Не закрываем — можно добавлять ещё
 }
 
 function removeUser(userId: number) {
@@ -116,7 +115,7 @@ function createGroupChat() {
         <button
           v-for="(tab, index) in tabs"
           :key="tab.key"
-          :ref="el => { tabRefs[index] = el as HTMLButtonElement | null }"
+          :ref="el => tabRefs[index] = el as HTMLButtonElement | null"
           :class="{ active: activeTab === tab.key }"
           @click="selectTab(tab.key, index)"
         >
@@ -147,12 +146,10 @@ function createGroupChat() {
 
           <!-- ШАГ 2: УЧАСТНИКИ -->
           <div v-else class="users-step">
-            <!-- КНОПКА "Добавить участника" -->
             <button @click="openUserSearch" class="add-participant-btn">
               <i class="fas fa-plus"></i> Добавить участника
             </button>
 
-            <!-- ВЫБРАННЫЕ УЧАСТНИКИ -->
             <div class="selected-users" v-if="selectedUsers.length">
               <div v-for="user in selectedUsers" :key="user.id" class="user-tag">
                 {{ user.username }}
@@ -160,12 +157,10 @@ function createGroupChat() {
               </div>
             </div>
 
-            <!-- ПОДСКАЗКА -->
             <div v-else class="no-users-hint">
               Нажмите "Добавить участника", чтобы выбрать пользователей
             </div>
 
-            <!-- СЧЁТЧИК -->
             <div class="participants-count">
               {{ selectedUsers.length }} участник(ов) выбрано
               <span v-if="selectedUsers.length < 2" class="warning">
@@ -175,11 +170,9 @@ function createGroupChat() {
           </div>
         </div>
 
-        <!-- ФУТЕР -->
         <div class="modal-footer">
           <button @click="closeGroupModal" class="btn-cancel">Отмена</button>
 
-          <!-- ДАЛЕЕ -->
           <button
             v-if="step === 'name'"
             @click="goToUsersStep"
@@ -189,7 +182,6 @@ function createGroupChat() {
             Далее
           </button>
 
-          <!-- СОЗДАТЬ -->
           <button
             v-else
             @click="createGroupChat"
@@ -202,7 +194,7 @@ function createGroupChat() {
       </div>
     </div>
 
-    <!-- ОТДЕЛЬНАЯ МОДАЛКА ПОИСКА УЧАСТНИКОВ -->
+    <!-- ПОИСК УЧАСТНИКОВ -->
     <div v-if="showUserSearch" class="user-search-overlay" @click="closeUserSearch">
       <div class="user-search-modal" @click.stop>
         <div class="search-header">

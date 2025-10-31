@@ -64,15 +64,33 @@ const emit = defineEmits<{
   (e: 'participant-added', participant: { id: number; user_id: number }): void
 }>()
 
+// === ВКЛАДКИ ===
+const activeTab = ref<'all' | 'group' | 'personal'>('all')
+
+// === Фильтрация диалогов ===
+const filteredDialogs = computed(() => {
+  if (activeTab.value === 'all') return props.dialogs
+
+  return props.dialogs.filter(dialog => {
+    if (activeTab.value === 'group') {
+      return dialog.type === 'group_chat'
+    }
+    if (activeTab.value === 'personal') {
+      return !dialog.type || dialog.type === 'private_chat'
+    }
+    return true
+  })
+})
+
 // === Модалка пересылки ===
 const forwardDialogs = ref<number[]>([])
 const isForwardModalOpen = ref(false)
 const messageToForward = ref<number | null>(null)
 
-// === Реактивные ссылки на props ===
+// === Реактивные ссылки ===
 const chatsRef = toRef(props, 'chats')
 
-// === Обновление lastMessage — БЕЗ ЦИКЛА! ===
+// === Обновление lastMessage ===
 watch(
   chatsRef,
   (newChats) => {
@@ -82,7 +100,6 @@ watch(
       const messages = newChats[dialog.id]
       if (!messages || messages.length === 0) return dialog
 
-      // TS: "lastMsg точно есть"
       const lastMsg = messages[messages.length - 1]!
 
       return {
@@ -140,17 +157,12 @@ function handleParticipantAdded(participant: { id: number; user_id: number }) {
   emit('participant-added', participant)
 }
 
-// === Обновление названия чата — БЕЗ ЦИКЛА ===
+// === Обновление названия чата ===
 function handleTitleUpdate(newTitle: string) {
   if (!props.activeChat) return
 
-  const activeChat = props.activeChat as Dialog
-
-  // Проверяем, изменилось ли название
-  if (activeChat.from === newTitle) return
-
   const updatedDialogs = props.dialogs.map(d =>
-    d.id === activeChat.id ? { ...d, from: newTitle } : d
+    d.id === props.activeChat!.id ? { ...d, from: newTitle } : d
   )
 
   emit('update-dialogs', updatedDialogs)
@@ -199,7 +211,7 @@ const activeConversation = computed<Conversation | null>(() => {
           v-if="props.currentScreen === 'dialogs'"
           @user-search="emit('user-search')"
           @new-group-chat="emit('new-group-chat')"
-          @tab-change="emit('tab-change', $event)"
+          @tab-change="activeTab = $event"   
           @create-group-chat="(name, userIds) => emit('create-group-chat', name, userIds)"
         />
         <ChatHeader
@@ -222,7 +234,7 @@ const activeConversation = computed<Conversation | null>(() => {
       <div :key="props.currentScreen" class="chat-content">
         <DialogList
           v-if="props.currentScreen === 'dialogs'"
-          :dialogs="props.dialogs"
+          :dialogs="filteredDialogs"   
           @open-chat="emit('open-chat', $event)"
         />
         <ChatWindow

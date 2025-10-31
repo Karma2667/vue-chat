@@ -1,6 +1,6 @@
 // src/composables/useChatActions.ts
 import type { Ref } from 'vue';
-import type { Dialog, ChatMessage } from './useChatState';
+import type { Dialog, ChatMessage } from '../types/index';
 import { useMessages } from './useMessages';
 
 export function useChatActions(

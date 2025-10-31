@@ -1,7 +1,7 @@
 // src/composables/useConversations.ts
 import { fetchConversations, type Conversation } from '~/utils/conversations';
 import { createPrivateChat } from '~/utils/createPrivateChat';
-import type { Dialog } from './useChatState';
+import type { Dialog } from '../types/index';
 
 export function useConversations(dialogs: Ref<Dialog[]>, chats: Ref<Record<number, ChatMessage[]>>) {
   async function loadConversations() {

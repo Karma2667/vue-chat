@@ -2,7 +2,7 @@
 import type { Ref } from 'vue';
 import { sendMessage, fetchMessages, editMessage, forwardMessage as forwardMessageAPI, type Message, type Attachment } from '~/utils/messages';
 import { authService } from '~/utils/auth';
-import type { Dialog, ChatMessage } from './useChatState';
+import type { Dialog, ChatMessage } from '../types/index';
 import { getAuthenticatedUrl } from './useAttachments';
 
 // Simple debounce utility
