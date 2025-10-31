@@ -6,11 +6,11 @@
         <i class="fas fa-times"></i>
       </button>
 
-      <!-- Фиксированный контейнер для медиа -->
+      <!-- Контейнер для медиа -->
       <div class="media-container">
-        <!-- Изображение -->
+        <!-- ИЗОБРАЖЕНИЕ -->
         <img
-          v-if="attachment.url && attachment.type === 'image'"
+          v-if="attachment.type === 'image' && attachment.url"
           :src="attachment.url"
           :alt="attachment.name || 'Изображение'"
           class="media-item"
@@ -18,19 +18,19 @@
           @error="onMediaError"
         />
 
-        <!-- Видео -->
+        <!-- ВИДЕО -->
         <video
-          v-else-if="attachment.url && attachment.type === 'video'"
+          v-else-if="attachment.type === 'video' && attachment.url"
           :src="attachment.url"
           controls
           class="media-item"
           @loadeddata="onMediaLoad"
           @error="onMediaError"
         >
-          Ваш браузер не поддерживает воспроизведение видео.
+          Ваш браузер не поддерживает видео.
         </video>
 
-        <!-- Файл (без медиа) -->
+        <!-- ФАЙЛ -->
         <div v-else class="file-preview">
           <i class="fas fa-file-alt file-icon"></i>
           <p class="file-name">{{ attachment.name || 'Файл' }}</p>
@@ -73,15 +73,14 @@ function closeModal() {
 }
 
 function onMediaLoad() {
-  console.log('Медиа загружено в превью:', props.attachment?.url)
+  console.log('Медиа загружено:', props.attachment?.url)
 }
 
 function onMediaError() {
-  console.error('Ошибка загрузки медиа в превью:', props.attachment?.url)
+  console.error('Ошибка загрузки:', props.attachment?.url)
   closeModal()
 }
 
-// Форматирование размера файла
 function formatSize(size?: string): string {
   if (!size) return 'неизвестно'
   const bytes = Number(size)
@@ -92,73 +91,76 @@ function formatSize(size?: string): string {
 </script>
 
 <style scoped>
-/* Модальное окно */
 .preview-modal {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.85);
+  background: rgba(0, 0, 0, 0.9);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 2000;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
-/* Контент */
 .preview-content {
   position: relative;
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
   background: #000;
+  max-width: 95vw;
+  max-height: 95vh;
 }
 
-/* Кнопка закрытия */
 .close-btn {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 16px;
+  right: 16px;
   z-index: 10;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.7);
   border: none;
   color: #fff;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
 }
 
 .close-btn:hover {
-  background: rgba(220, 38, 38, 0.8);
+  background: rgba(239, 68, 68, 0.9);
   transform: scale(1.1);
 }
 
-/* Фиксированный контейнер для медиа */
+/* Контейнер медиа */
 .media-container {
-  width: 800px;
-  height: 600px;
+  width: 90vw;
+  height: 80vh;
+  max-width: 1000px;
+  max-height: 800px;
   background: #000;
   display: flex;
   justify-content: center;
   align-items: center;
   overflow: hidden;
+  border-radius: 16px;
 }
 
-/* Единый стиль для изображения и видео */
 .media-item {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
   display: block;
 }
 
-/* Превью файла */
 .file-preview {
   display: flex;
   flex-direction: column;
@@ -166,24 +168,24 @@ function formatSize(size?: string): string {
   justify-content: center;
   color: #fff;
   text-align: center;
-  padding: 2rem;
-  gap: 0.75rem;
+  padding: 2.5rem;
+  gap: 1rem;
 }
 
 .file-icon {
-  font-size: 3rem;
+  font-size: 4rem;
   color: #0078ff;
 }
 
 .file-name {
   font-weight: 600;
-  font-size: 1.1rem;
-  max-width: 300px;
+  font-size: 1.3rem;
+  max-width: 400px;
   word-break: break-word;
 }
 
 .file-size {
-  font-size: 0.9rem;
+  font-size: 1rem;
   color: #aaa;
 }
 
@@ -191,8 +193,9 @@ function formatSize(size?: string): string {
   color: #0078ff;
   text-decoration: underline;
   font-weight: 500;
-  font-size: 0.95rem;
+  font-size: 1rem;
   margin-top: 0.5rem;
+  transition: color 0.2s;
 }
 
 .download-link:hover {
@@ -201,16 +204,14 @@ function formatSize(size?: string): string {
 
 .file-unavailable {
   color: #ff6b6b;
-  font-size: 0.9rem;
+  font-size: 1rem;
 }
 
 /* Адаптивность */
-@media (max-width: 900px) {
+@media (max-width: 768px) {
   .media-container {
-    width: 90vw;
-    height: calc(90vw * 0.75); /* 4:3 */
-    max-width: 600px;
-    max-height: 450px;
+    width: 95vw;
+    height: 75vh;
   }
 
   .file-preview {
@@ -218,21 +219,20 @@ function formatSize(size?: string): string {
   }
 
   .file-name {
-    font-size: 1rem;
-    max-width: 250px;
+    font-size: 1.1rem;
+    max-width: 300px;
   }
 }
 
 @media (max-width: 480px) {
-  .media-container {
-    width: 95vw;
-    height: calc(95vw * 0.75);
+  .close-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 1rem;
   }
 
-  .close-btn {
-    width: 32px;
-    height: 32px;
-    font-size: 1rem;
+  .file-icon {
+    font-size: 3rem;
   }
 }
 </style>

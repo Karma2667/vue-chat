@@ -1,27 +1,4 @@
 <!-- src/components/AttachmentMessage.vue -->
-<script setup lang="ts">
-import { defineProps, defineEmits } from 'vue'
-
-const props = defineProps<{
-  attachment: {
-    type: 'image' | 'video' | 'file'
-    url: string
-    name?: string
-    size?: string
-  }
-}>()
-
-const emit = defineEmits<{
-  (e: 'preview', attachment: typeof props.attachment): void
-}>()
-
-function handleClick() {
-  if (props.attachment.type === 'image' || props.attachment.type === 'video') {
-    emit('preview', props.attachment)
-  }
-}
-</script>
-
 <template>
   <div class="attachment-message" @click="handleClick">
     <!-- ИЗОБРАЖЕНИЕ -->
@@ -31,8 +8,6 @@ function handleClick() {
         :src="attachment.url"
         :alt="attachment.name || 'Изображение'"
         class="media-item"
-        @error="console.error('Image load error:', attachment.url)"
-        @load="console.log('Image loaded:', attachment.url)"
       />
       <div v-else class="media-error">
         <i class="fas fa-exclamation-triangle"></i>
@@ -47,8 +22,6 @@ function handleClick() {
         :src="attachment.url"
         controls
         class="media-item"
-        @error="console.error('Video load error:', attachment.url)"
-        @loadeddata="console.log('Video loaded:', attachment.url)"
       >
         Ваш браузер не поддерживает видео.
       </video>
@@ -80,15 +53,39 @@ function handleClick() {
   </div>
 </template>
 
+<script setup lang="ts">
+import { defineProps, defineEmits } from 'vue'
+
+const props = defineProps<{
+  attachment: {
+    type: 'image' | 'video' | 'file'
+    url: string
+    name?: string
+    size?: string
+  }
+}>()
+
+const emit = defineEmits<{
+  (e: 'preview', attachment: typeof props.attachment): void
+}>()
+
+function handleClick() {
+  if (props.attachment.type === 'image' || props.attachment.type === 'video') {
+    emit('preview', props.attachment)
+  }
+}
+</script>
+
 <style scoped>
 .attachment-message {
-  display: inline-block;
-  border-radius: 12px;
-  overflow: hidden;
-  background: #f8f9fa;
+  display: block;
   cursor: pointer;
   transition: all 0.2s ease;
   max-width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f8f9fa;
 }
 
 .attachment-message:hover {
@@ -96,16 +93,14 @@ function handleClick() {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-/* ФИКСИРОВАННЫЙ КОНТЕЙНЕР */
 .media-wrapper {
-  width: 150px;
-  height: 150px;
+  width: 100%;
+  height: 100%;
   background: #000;
   display: flex;
   justify-content: center;
   align-items: center;
   overflow: hidden;
-  position: relative;
 }
 
 .media-item {
@@ -128,12 +123,6 @@ function handleClick() {
   text-align: center;
 }
 
-.media-error i,
-.file-error i {
-  font-size: 1.5rem;
-}
-
-/* Файл */
 .file-attachment {
   display: flex;
   align-items: center;
@@ -145,6 +134,8 @@ function handleClick() {
   text-decoration: none;
   color: inherit;
   font-size: 0.9rem;
+  width: 100%;
+  height: 100%;
 }
 
 .file-attachment i {
@@ -156,12 +147,13 @@ function handleClick() {
   display: flex;
   flex-direction: column;
   line-height: 1.3;
+  flex: 1;
 }
 
 .file-name {
   font-weight: 500;
   color: #1f2937;
-  max-width: 200px;
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
