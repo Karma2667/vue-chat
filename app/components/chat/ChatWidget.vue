@@ -1,11 +1,20 @@
+<!-- src/components/chat/ChatWidget.vue -->
 <template>
   <div class="messenger-widget" :class="widgetClasses">
+    <!-- Тогглер -->
     <transition name="toggle-fade">
-      <ChatToggle v-if="!isOpen" :is-open="isOpen" class="chat-toggle" @toggle="toggleWidget" />
+      <ChatToggle
+        v-if="!isOpen"
+        :is-open="isOpen"
+        class="chat-toggle"
+        @toggle="toggleWidget"
+      />
     </transition>
 
+    <!-- Фон -->
     <Backdrop v-if="isOpen" @close="toggleWidget" />
 
+    <!-- Панель -->
     <transition name="panel-slide">
       <ChatPanel
         v-if="isOpen"
@@ -33,37 +42,17 @@
       />
     </transition>
 
-    <!-- ПОИСК ПОЛЬЗОВАТЕЛЕЙ -->
-    <UserSearch
-      :visible="userSearchVisible"
-      @select-user="handleSelectUser"
-      @close="userSearchVisible = false"
-    />
-
-    <!-- ПОИСК СООБЩЕНИЙ -->
-    <MessageSearch
-      :visible="messageSearchVisible"
-      :conversation-id="activeChat?.id"
-      @select-message="onMessageSelect"
-      @close="messageSearchVisible = false"
-    />
-
-    <AttachmentPreview
-      v-if="previewAttachment"
-      :attachment="previewAttachment"
-      :visible="!!previewAttachment"
-      @close="previewAttachment = null"
-    />
+    <!-- Модалки -->
+    <UserSearch :visible="userSearchVisible" @select-user="handleSelectUser" @close="userSearchVisible = false" />
+    <MessageSearch :visible="messageSearchVisible" :conversation-id="activeChat?.id" @select-message="onMessageSelect" @close="messageSearchVisible = false" />
+    <AttachmentPreview v-if="previewAttachment" :attachment="previewAttachment" :visible="!!previewAttachment" @close="previewAttachment = null" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { type ChatMessage } from '~/composables/useChat'
 import { createPrivateChat } from '~/utils/createPrivateChat'
-import { sendMessage } from '~/utils/messages'
-import type { Message } from '~/utils/messages'
-import { authService } from '~/utils/auth' // ← ИСПРАВЛЕНО
+import { authService } from '~/utils/auth'
 
 import ChatToggle from './ChatToggle.vue'
 import Backdrop from './Backdrop.vue'
@@ -94,249 +83,125 @@ const {
   forwardMessage,
   handleEditMessage,
   cancelEdit,
+  handleSendMessage,
 } = useChat()
 
 const messageSearchVisible = ref(false)
 const userSearchVisible = ref(false)
 
+// === ПОИСК ===
 function handleSearch() {
-  if (currentScreen.value === 'chat') {
-    messageSearchVisible.value = true
-  }
+  if (currentScreen.value === 'chat') messageSearchVisible.value = true
 }
 
 function openUserSearch() {
   userSearchVisible.value = true
 }
 
+// === ПОЛЬЗОВАТЕЛИ ===
 async function handleSelectUser(user: { id: number; username: string }) {
   try {
     const conversation = await createPrivateChat(user.id)
-
     const exists = dialogs.value.some(d => d.id === conversation.id)
     if (!exists) {
-      dialogs.value = [
-        ...dialogs.value,
-        {
-          id: conversation.id,
-          from: user.username,
-          type: 'private',
-          lastMessage: undefined
-        }
-      ]
+      dialogs.value.push({ id: conversation.id, from: user.username, type: 'private', lastMessage: undefined })
     }
-
-    openChat({
-      id: conversation.id,
-      from: user.username,
-      type: 'private',
-      lastMessage: undefined
-    })
-
+    openChat({ id: conversation.id, from: user.username, type: 'private', lastMessage: undefined })
     userSearchVisible.value = false
   } catch (err: any) {
     alert(err.message || 'Не удалось открыть чат')
   }
 }
 
-// НОВАЯ ФУНКЦИЯ — СОЗДАНИЕ ГРУППОВОГО ЧАТА
+// === ГРУППЫ ===
 async function createGroupChat(name: string, userIds: number[]) {
   try {
-    const response = await authService.makeRequest<{ conversation: any }>(
+    const { conversation } = await authService.makeRequest<{ conversation: any }>(
       '/conversations',
       'POST',
-      {
-        conversation: {
-          conversation_type: 'group_chat',
-          name,
-          user_ids: userIds
-        }
-      }
+      { conversation: { conversation_type: 'group_chat', name, user_ids: userIds } }
     )
-
-    const conv = response.conversation
-
-    const exists = dialogs.value.some(d => d.id === conv.id)
+    const exists = dialogs.value.some(d => d.id === conversation.id)
     if (!exists) {
-      dialogs.value = [...dialogs.value, {
-        id: conv.id,
-        from: name,
-        type: 'group',
-        lastMessage: undefined
-      }]
+      dialogs.value.push({ id: conversation.id, from: name, type: 'group', lastMessage: undefined })
     }
-
-    openChat({
-      id: conv.id,
-      from: name,
-      type: 'group',
-      lastMessage: undefined
-    })
+    openChat({ id: conversation.id, from: name, type: 'group', lastMessage: undefined })
   } catch (err: any) {
     alert(err.message || 'Не удалось создать группу')
   }
 }
 
-async function handleSendMessage(
-  conversationId: number,
-  content: string | null,
-  replyToMessageId?: number,
-  attachment?: File
-) {
-  if (!conversationId || (!content?.trim() && !attachment)) return
-
-  const tempId = Date.now()
-  const tempMessage: ChatMessage = {
-    id: tempId,
-    text: content || '',
-    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    author: 'You',
-    self: true,
-    reply: replyToMessageId
-      ? { id: replyToMessageId, author: '', text: '[Загрузка...]' }
-      : null,
-    attachments: attachment
-      ? [{ type: 'file', url: URL.createObjectURL(attachment), name: attachment.name }]
-      : [],
-    edited: false
-  }
-
-  if (!chats.value[conversationId]) chats.value[conversationId] = []
-  chats.value[conversationId].push(tempMessage)
-
-  try {
-    const response = await sendMessage(conversationId, {
-      message: {
-        content: content || null,
-        reply_to_message_id: replyToMessageId,
-        attachment: attachment ? {
-          filename: attachment.name,
-          size: attachment.size,
-          mime_type: attachment.type
-        } : undefined
-      }
-    })
-
-    const serverMsg = response
-    const index = chats.value[conversationId].findIndex(m => m.id === tempId)
-    if (index !== -1) {
-      chats.value[conversationId][index] = {
-        id: serverMsg.id,
-        text: serverMsg.content || '',
-        time: new Date(serverMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        author: serverMsg.user?.username || 'You',
-        self: true,
-        reply: serverMsg.reply_to
-          ? typeof serverMsg.reply_to === 'number'
-            ? { id: serverMsg.reply_to, author: '', text: '' }
-            : {
-                id: serverMsg.reply_to.id,
-                author: serverMsg.reply_to.user?.username || 'Unknown',
-                text: serverMsg.reply_to.content || ''
-              }
-          : null,
-        attachments: serverMsg.attachment
-          ? [{
-              type: serverMsg.attachment.mime_type?.startsWith('image') ? 'image' :
-                    serverMsg.attachment.mime_type?.startsWith('video') ? 'video' : 'file',
-              url: serverMsg.attachment.url || '',
-              name: serverMsg.attachment.filename,
-              size: serverMsg.attachment.size?.toString()
-            }]
-          : [],
-        edited: serverMsg.edited
-      }
-    }
-  } catch (err: any) {
-    console.error('Ошибка отправки:', err)
-    chats.value[conversationId] = chats.value[conversationId].filter(m => m.id !== tempId)
-    alert(err.message || 'Не удалось отправить сообщение')
-  }
-}
-
-function onMessageSelect(message: ChatMessage) {
+// === СООБЩЕНИЯ ===
+function onMessageSelect(message: any) {
   const el = document.querySelector(`[data-message-id="${message.id}"]`)
   if (el) {
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    el.classList.add('message-highlight')
-    setTimeout(() => el.classList.remove('message-highlight'), 3000)
+    el.classList.add('highlight')
+    setTimeout(() => el.classList.remove('highlight'), 3000)
   }
   messageSearchVisible.value = false
 }
 
+// === КЛАССЫ ===
 const widgetClasses = computed(() => ({
   'is-open': isOpen.value,
   'panel-inited': true,
 }))
 
+// === ЖИЗНЬ ===
 onMounted(() => {
   loadConversations()
 })
 </script>
 
 <style scoped>
+/* Основной контейнер */
 .messenger-widget {
   position: fixed;
-  inset: 0;
+  inset: 0 0 0 auto;
   width: 400px;
-  right: 0;
-  left: auto;
   z-index: 10000;
+  pointer-events: none;
 }
 
 .messenger-widget > * {
-  user-select: auto !important;
-  pointer-events: auto !important;
+  pointer-events: auto;
 }
 
-.backdrop {
-  z-index: 10001;
-}
+/* Слои */
+.backdrop { z-index: 10001; }
+.chat-panel { z-index: 10002; }
+.chat-toggle { z-index: 10003; }
 
-.chat-panel {
-  z-index: 10002;
-}
-
+/* Тогглер */
 .chat-toggle {
-  z-index: 10003;
   position: fixed;
   bottom: 24px;
   right: 24px;
 }
 
-:deep(.overlay) {
-  z-index: 10004 !important;
-}
-
+/* Анимации */
 .toggle-fade-enter-active,
-.toggle-fade-leave-active {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
+.toggle-fade-leave-active { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
 .toggle-fade-enter-from,
-.toggle-fade-leave-to {
-  opacity: 0;
-  transform: scale(0.9);
-}
-
-.toggle-fade-enter-to,
-.toggle-fade-leave-from {
-  opacity: 1;
-  transform: scale(1);
-}
+.toggle-fade-leave-to { opacity: 0; transform: scale(0.9); }
 
 .panel-slide-enter-active,
-.panel-slide-leave-active {
-  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
+.panel-slide-leave-active { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
 .panel-slide-enter-from,
-.panel-slide-leave-to {
-  transform: translateX(100%);
+.panel-slide-leave-to { transform: translateX(100%); }
+
+/* Подсветка сообщения */
+:deep(.highlight) {
+  animation: highlight 3s ease forwards;
 }
 
-.panel-slide-enter-to,
-.panel-slide-leave-from {
-  transform: translateX(0);
+@keyframes highlight {
+  0% { background: #fef3c7; transform: scale(1.02); }
+  50% { background: #fde68a; }
+  100% { background: transparent; transform: scale(1); }
 }
+
+/* Превью */
+:deep(.preview-modal) { z-index: 20000 !important; }
 </style>

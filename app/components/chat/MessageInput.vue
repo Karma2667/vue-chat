@@ -206,7 +206,9 @@ function handleScrollToReply(id: number) {
 
     <!-- Emoji picker -->
     <transition name="fade">
-      <EmojiPicker v-if="showEmojiPicker" @select="insertEmoji" />
+      <div v-if="showEmojiPicker" class="emoji-picker-wrapper">
+        <EmojiPicker @select="insertEmoji" />
+      </div>
     </transition>
 
     <!-- Attachments preview -->
@@ -343,5 +345,29 @@ function handleScrollToReply(id: number) {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+.emoji-picker-wrapper {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10000; /* ВЫШЕ ВСЕГО */
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px 12px 0 0;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: all 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
 }
 </style>

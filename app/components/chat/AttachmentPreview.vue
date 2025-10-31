@@ -2,132 +2,237 @@
 <template>
   <div v-if="visible && attachment" class="preview-modal" @click.self="closeModal">
     <div class="preview-content">
-      <button class="close-btn" @click="closeModal">
+      <button class="close-btn" @click="closeModal" aria-label="Закрыть">
         <i class="fas fa-times"></i>
       </button>
-      <template v-if="attachment.url && attachment.type === 'image'">
+
+      <!-- Фиксированный контейнер для медиа -->
+      <div class="media-container">
+        <!-- Изображение -->
         <img
+          v-if="attachment.url && attachment.type === 'image'"
           :src="attachment.url"
-          :alt="attachment.name || 'Preview'"
-          class="preview-image"
-          @error="console.error('❌ Image failed to load in preview:', attachment.url); closeModal()"
-          @load="console.log('✅ Image loaded in preview:', attachment.url)"
+          :alt="attachment.name || 'Изображение'"
+          class="media-item"
+          @load="onMediaLoad"
+          @error="onMediaError"
         />
-      </template>
-      <template v-else-if="attachment.url && attachment.type === 'video'">
+
+        <!-- Видео -->
         <video
-          controls
+          v-else-if="attachment.url && attachment.type === 'video'"
           :src="attachment.url"
-          class="preview-video"
-          @error="console.error('❌ Video failed to load in preview:', attachment.url); closeModal()"
-          @loadeddata="console.log('✅ Video loaded in preview:', attachment.url)"
+          controls
+          class="media-item"
+          @loadeddata="onMediaLoad"
+          @error="onMediaError"
         >
           Ваш браузер не поддерживает воспроизведение видео.
         </video>
-      </template>
-      <template v-else>
-        <div class="file-preview">
-          <p>{{ attachment.name || 'Файл' }} ({{ attachment.size || 'unknown' }})</p>
-          <a v-if="attachment.url" :href="attachment.url" download :title="attachment.name || 'Скачать'">
+
+        <!-- Файл (без медиа) -->
+        <div v-else class="file-preview">
+          <i class="fas fa-file-alt file-icon"></i>
+          <p class="file-name">{{ attachment.name || 'Файл' }}</p>
+          <p class="file-size">{{ formatSize(attachment.size) }}</p>
+          <a
+            v-if="attachment.url"
+            :href="attachment.url"
+            download
+            class="download-link"
+            @click.stop
+          >
             Скачать
           </a>
-          <p v-else>Файл недоступен: URL отсутствует</p>
+          <p v-else class="file-unavailable">Файл недоступен</p>
         </div>
-      </template>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { defineProps, defineEmits, watch } from 'vue';
+import { defineProps, defineEmits } from 'vue'
 
 const props = defineProps<{
   attachment: {
-    type: 'image' | 'video' | 'file';
-    url: string;
-    name?: string;
-    size?: string;
-  } | null;
-  visible: boolean;
-}>();
+    type: 'image' | 'video' | 'file'
+    url: string
+    name?: string
+    size?: string
+  } | null
+  visible: boolean
+}>()
 
 const emit = defineEmits<{
-  (e: 'close'): void;
-}>();
+  (e: 'close'): void
+}>()
 
 function closeModal() {
-  emit('close');
+  emit('close')
 }
 
-watch(
-  () => props.attachment?.url,
-  (newUrl) => {
-    console.log('🔍 Attachment URL updated in preview:', newUrl);
-  }
-);
+function onMediaLoad() {
+  console.log('Медиа загружено в превью:', props.attachment?.url)
+}
+
+function onMediaError() {
+  console.error('Ошибка загрузки медиа в превью:', props.attachment?.url)
+  closeModal()
+}
+
+// Форматирование размера файла
+function formatSize(size?: string): string {
+  if (!size) return 'неизвестно'
+  const bytes = Number(size)
+  if (isNaN(bytes)) return size
+  const kb = bytes / 1024
+  return kb < 1024 ? `${kb.toFixed(1)} КБ` : `${(kb / 1024).toFixed(1)} МБ`
+}
 </script>
 
 <style scoped>
+/* Модальное окно */
 .preview-modal {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.8);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 2000;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
+/* Контент */
 .preview-content {
   position: relative;
-  max-width: 90%;
-  max-height: 90%;
-  background: #fff;
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  background: #000;
 }
 
-.preview-image,
-.preview-video {
-  width: 100%;
-  height: 100%;
-  max-width: 800px;
-  max-height: 600px;
-  object-fit: contain;
-  display: block;
-}
-
-.file-preview {
-  padding: 20px;
-  text-align: center;
-}
-
-.file-preview a {
-  color: blue;
-  text-decoration: underline;
-}
-
+/* Кнопка закрытия */
 .close-btn {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  background: rgba(0, 0, 0, 0.5);
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.6);
   border: none;
   color: #fff;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  width: 30px;
-  height: 30px;
+  font-size: 1.1rem;
   cursor: pointer;
-  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
 }
 
 .close-btn:hover {
-  background: rgba(255, 0, 0, 0.6);
+  background: rgba(220, 38, 38, 0.8);
+  transform: scale(1.1);
+}
+
+/* Фиксированный контейнер для медиа */
+.media-container {
+  width: 800px;
+  height: 600px;
+  background: #000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+/* Единый стиль для изображения и видео */
+.media-item {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Превью файла */
+.file-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  text-align: center;
+  padding: 2rem;
+  gap: 0.75rem;
+}
+
+.file-icon {
+  font-size: 3rem;
+  color: #0078ff;
+}
+
+.file-name {
+  font-weight: 600;
+  font-size: 1.1rem;
+  max-width: 300px;
+  word-break: break-word;
+}
+
+.file-size {
+  font-size: 0.9rem;
+  color: #aaa;
+}
+
+.download-link {
+  color: #0078ff;
+  text-decoration: underline;
+  font-weight: 500;
+  font-size: 0.95rem;
+  margin-top: 0.5rem;
+}
+
+.download-link:hover {
+  color: #0056b3;
+}
+
+.file-unavailable {
+  color: #ff6b6b;
+  font-size: 0.9rem;
+}
+
+/* Адаптивность */
+@media (max-width: 900px) {
+  .media-container {
+    width: 90vw;
+    height: calc(90vw * 0.75); /* 4:3 */
+    max-width: 600px;
+    max-height: 450px;
+  }
+
+  .file-preview {
+    padding: 1.5rem;
+  }
+
+  .file-name {
+    font-size: 1rem;
+    max-width: 250px;
+  }
+}
+
+@media (max-width: 480px) {
+  .media-container {
+    width: 95vw;
+    height: calc(95vw * 0.75);
+  }
+
+  .close-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 1rem;
+  }
 }
 </style>

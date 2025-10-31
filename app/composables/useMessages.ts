@@ -183,85 +183,94 @@ export function useMessages(
     }
   }
 
-  // Debounce handleSendMessage to prevent multiple rapid calls
-  const debouncedHandleSendMessage = debounce(
-    async (conversationId: number, content: string | null, replyToMessageId?: number, attachment?: File) => {
-      if (!conversationId) {
-        alert('Ошибка: не выбран чат');
-        return;
+const debouncedHandleSendMessage = debounce(
+  async (conversationId: number, content: string | null, replyToMessageId?: number, attachment?: File) => {
+    if (!conversationId) {
+      alert('Ошибка: не выбран чат');
+      return;
+    }
+
+    const tempId = Date.now();
+    const tempMessage: ChatMessage = {
+      id: tempId,
+      text: content || '',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      author: 'You',
+      self: true,
+      reply: replyToMessageId ? { id: replyToMessageId, author: '', text: '[Загрузка...]' } : null,
+      attachments: attachment
+        ? [{ type: 'file', url: URL.createObjectURL(attachment), name: attachment.name }]
+        : [],
+      edited: false,
+    };
+
+    if (!chats.value[conversationId]) chats.value[conversationId] = [];
+    chats.value[conversationId].push(tempMessage);
+
+    try {
+      let attachmentData: Attachment | undefined = undefined; // ← undefined, не null!
+
+      if (attachment) {
+        const formData = new FormData();
+        formData.append('file', attachment);
+
+        const uploaded = await authService.makeRequest<Attachment>(
+          '/attachments/upload',
+          'POST',
+          formData
+          // НЕ указывай Content-Type — браузер сам поставит boundary
+        );
+        attachmentData = uploaded;
+        console.log('Файл загружен в кэш:', uploaded);
       }
 
-      try {
-        let attachmentData: Attachment | undefined;
-        if (attachment) {
-          const formData = new FormData();
-          formData.append('file', attachment);
-          attachmentData = await authService.makeRequest<Attachment>(
-            '/attachments/upload',
-            'POST',
-            formData,
-            { headers: { 'Content-Type': 'multipart/form-data' } }
-          );
-          console.log('📎 Attachment uploaded:', attachmentData);
-        }
+      const response = await sendMessage(conversationId, {
+        message: {
+          content: content || null,
+          reply_to_message_id: replyToMessageId,
+          attachment: attachmentData, // ← undefined если нет
+        },
+      });
 
-        const finalContent = content || (attachment ? attachment?.name : null);
-        const request = {
-          message: {
-            content: finalContent,
-            reply_to_message_id: replyToMessageId,
-            attachment: attachmentData,
-          },
-        };
-        const response = await sendMessage(conversationId, request);
-        console.log('📬 Message sent:', response);
-
-        const user = authService.getUser();
-        const username = user?.username || 'Вы';
-
-        const newMessage: ChatMessage = {
-          id: response.id,
-          text: response.content || (attachment ? attachment?.name || '' : ''),
-          time: response.created_at
-            ? new Date(response.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          author: response.user?.username || username,
-          self: currentUserId.value !== null && response.user_id === currentUserId.value,
-          reply: null,
-          attachments: response.attachment
-            ? [
-                {
-                  type: response.attachment.mime_type?.startsWith('image/') ? 'image' : response.attachment.mime_type?.startsWith('video/') ? 'video' : 'file',
-                  url: response.attachment.url || '',
-                  name: response.attachment.filename || undefined,
-                  size: response.attachment.size ? `${(Number(response.attachment.size) / 1024).toFixed(2)} KB` : undefined,
-                },
-              ]
+      // Заменяем tempMessage
+      const index = chats.value[conversationId].findIndex(m => m.id === tempId);
+      if (index !== -1) {
+        const serverMsg = response;
+        chats.value[conversationId][index] = {
+          id: serverMsg.id,
+          text: serverMsg.content || '',
+          time: new Date(serverMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          author: serverMsg.user?.username || 'You',
+          self: true,
+          reply: serverMsg.reply_to
+            ? typeof serverMsg.reply_to === 'number'
+              ? { id: serverMsg.reply_to, author: '', text: '' }
+              : {
+                  id: serverMsg.reply_to.id,
+                  author: serverMsg.reply_to.user?.username || 'Unknown',
+                  text: serverMsg.reply_to.content || '',
+                }
+            : null,
+          attachments: serverMsg.attachment
+            ? [{
+                type: serverMsg.attachment.mime_type?.startsWith('image') ? 'image' :
+                      serverMsg.attachment.mime_type?.startsWith('video') ? 'video' : 'file',
+                url: serverMsg.attachment.url || '',
+                name: serverMsg.attachment.filename,
+                size: serverMsg.attachment.size?.toString(),
+              }]
             : [],
-          edited: response.edited || false,
+          edited: serverMsg.edited,
         };
-
-        if (!chats.value[conversationId]) {
-          chats.value[conversationId] = [];
-        }
-
-        // Prevent duplicate messages
-        if (!chats.value[conversationId].some((msg) => msg.id === newMessage.id)) {
-          chats.value[conversationId].push(newMessage);
-          chats.value = { ...chats.value }; // Trigger reactivity
-          console.log('✅ New message added to chats:', newMessage);
-        } else {
-          console.warn('⚠️ Duplicate message detected, not adding:', newMessage.id);
-        }
-
-        editingMessage.value = null;
-      } catch (error: any) {
-        console.error('❌ Ошибка отправки:', error);
-        alert('Ошибка отправки: ' + error.message);
       }
-    },
-    300 // 300ms debounce
-  );
+    } catch (error: any) {
+      console.error('Ошибка отправки:', error);
+      chats.value[conversationId] = chats.value[conversationId].filter(m => m.id !== tempId);
+      alert(error.message || 'Не удалось отправить сообщение');
+    }
+  },
+  300
+);
 
   return { fetchChatMessages, deleteMessage, handleEditMessage, forwardMessage, handleSendMessage: debouncedHandleSendMessage };
 }

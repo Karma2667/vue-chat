@@ -1,161 +1,174 @@
 <!-- src/components/AttachmentMessage.vue -->
 <script setup lang="ts">
-import { defineProps, defineEmits } from 'vue';
+import { defineProps, defineEmits } from 'vue'
 
 const props = defineProps<{
   attachment: {
-    type: 'image' | 'video' | 'file';
-    url: string;
-    name?: string;
-    size?: string;
-  };
-}>();
+    type: 'image' | 'video' | 'file'
+    url: string
+    name?: string
+    size?: string
+  }
+}>()
 
 const emit = defineEmits<{
-  (e: 'preview', attachment: { type: 'image' | 'video' | 'file'; url: string; name?: string; size?: string }): void;
-}>();
+  (e: 'preview', attachment: typeof props.attachment): void
+}>()
 
 function handleClick() {
-  console.log('🔍 Handling click on attachment:', props.attachment);
   if (props.attachment.type === 'image' || props.attachment.type === 'video') {
-    if (props.attachment.url) {
-      emit('preview', props.attachment);
-    } else {
-      console.warn('⚠️ Cannot preview attachment: URL is empty');
-    }
+    emit('preview', props.attachment)
   }
 }
 </script>
 
 <template>
-  <div class="attachment-message">
-    <template v-if="attachment.type === 'image'">
+  <div class="attachment-message" @click="handleClick">
+    <!-- ИЗОБРАЖЕНИЕ -->
+    <div v-if="attachment.type === 'image'" class="media-wrapper">
       <img
         v-if="attachment.url"
         :src="attachment.url"
-        :alt="attachment.name || 'Image'"
-        class="attachment-image"
-        @click="handleClick"
-        @error="console.error('❌ Image failed to load:', attachment.url)"
-        @load="console.log('✅ Image loaded:', attachment.url)"
+        :alt="attachment.name || 'Изображение'"
+        class="media-item"
+        @error="console.error('Image load error:', attachment.url)"
+        @load="console.log('Image loaded:', attachment.url)"
       />
-      <div v-else class="attachment-error">
+      <div v-else class="media-error">
         <i class="fas fa-exclamation-triangle"></i>
         <span>Изображение недоступно</span>
       </div>
-    </template>
+    </div>
 
-    <template v-else-if="attachment.type === 'video'">
+    <!-- ВИДЕО -->
+    <div v-else-if="attachment.type === 'video'" class="media-wrapper">
       <video
         v-if="attachment.url"
-        controls
         :src="attachment.url"
-        class="attachment-video"
-        @click="handleClick"
-        @error="console.error('❌ Video failed to load:', attachment.url)"
-        @loadeddata="console.log('✅ Video loaded:', attachment.url)"
-      />
-      <div v-else class="attachment-error">
+        controls
+        class="media-item"
+        @error="console.error('Video load error:', attachment.url)"
+        @loadeddata="console.log('Video loaded:', attachment.url)"
+      >
+        Ваш браузер не поддерживает видео.
+      </video>
+      <div v-else class="media-error">
         <i class="fas fa-exclamation-triangle"></i>
         <span>Видео недоступно</span>
       </div>
-    </template>
+    </div>
 
-    <template v-else>
-      <a
-        v-if="attachment.url"
-        :href="attachment.url"
-        :download="attachment.name || 'file'"
-        class="attachment-file"
-        @click.stop
-      >
-        <i class="fas fa-file-alt"></i>
-        <div class="file-info">
-          <span class="file-name">{{ attachment.name || 'File' }}</span>
-          <span class="file-size">{{ attachment.size || '' }}</span>
-        </div>
-      </a>
-      <div v-else class="attachment-error">
-        <i class="fas fa-exclamation-triangle"></i>
-        <span>Файл недоступен</span>
+    <!-- ФАЙЛ -->
+    <a
+      v-else-if="attachment.url"
+      :href="attachment.url"
+      :download="attachment.name"
+      class="file-attachment"
+      @click.stop
+    >
+      <i class="fas fa-file-alt"></i>
+      <div class="file-info">
+        <span class="file-name">{{ attachment.name || 'Файл' }}</span>
+        <span class="file-size">{{ attachment.size || '' }}</span>
       </div>
-    </template>
+    </a>
+
+    <div v-else class="file-error">
+      <i class="fas fa-exclamation-triangle"></i>
+      <span>Файл недоступен</span>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .attachment-message {
   display: inline-block;
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
-  background: #f6f7f9;
+  background: #f8f9fa;
   cursor: pointer;
-  transition: transform 0.15s ease;
-  max-width: 320px;
+  transition: all 0.2s ease;
+  max-width: 100%;
 }
 
 .attachment-message:hover {
-  transform: scale(1.02);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.attachment-image {
+/* ФИКСИРОВАННЫЙ КОНТЕЙНЕР */
+.media-wrapper {
+  width: 300px;
+  height: 300px;
+  background: #000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.media-item {
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: cover;
   display: block;
-  border-radius: 8px;
 }
 
-.attachment-video {
-  width: 100%;
-  height: auto;
-  border-radius: 8px;
+.media-error,
+.file-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: #ef4444;
+  font-size: 0.875rem;
+  padding: 1rem;
+  text-align: center;
 }
 
-.attachment-file {
+.media-error i,
+.file-error i {
+  font-size: 1.5rem;
+}
+
+/* Файл */
+.file-attachment {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.6rem 0.8rem;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
   background: #fff;
-  border: 1px solid rgba(0,0,0,0.08);
-  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
   text-decoration: none;
   color: inherit;
+  font-size: 0.9rem;
 }
 
-.attachment-file i {
-  font-size: 1.4rem;
+.file-attachment i {
+  font-size: 1.6rem;
   color: #0078ff;
 }
 
 .file-info {
   display: flex;
   flex-direction: column;
-  line-height: 1.2;
+  line-height: 1.3;
 }
 
 .file-name {
   font-weight: 500;
-  color: #222;
+  color: #1f2937;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .file-size {
-  font-size: 0.85rem;
-  color: #777;
-}
-
-.attachment-error {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.6rem 0.8rem;
-  background: #fff;
-  border: 1px solid rgba(255,0,0,0.2);
-  border-radius: 8px;
-  color: #d32f2f;
-}
-
-.attachment-error i {
-  font-size: 1.4rem;
+  font-size: 0.8rem;
+  color: #64748b;
 }
 </style>
