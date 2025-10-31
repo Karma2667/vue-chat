@@ -1,10 +1,10 @@
 // composables/useActionCable.ts
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, type Ref } from 'vue'
 import type { ChatMessage } from './useChatState'
 import { createConsumer } from '@rails/actioncable'
 
 export function useActionCable(
-  activeChatId: ReturnType<typeof computed<number | null>>,
+  activeChatId: Ref<number | null>, // ← Ref, а не computed
   chats: Ref<Record<number, ChatMessage[]>>,
   dialogs: Ref<any[]>,
   currentUserId: Ref<number | null>,
@@ -17,21 +17,35 @@ export function useActionCable(
   const channel = ref<any>(null)
   const isConnected = ref(false)
 
-  const getToken = () => localStorage.getItem('jwt_token') || null
+  // ФИКС: правильный токен
+  const getToken = () => localStorage.getItem('access_token') || null
+
+  // ФИКС: правильный URL (если бэк на другом домене)
+  const getWsUrl = () => {
+    const token = getToken()
+    if (!token) return null
+
+    // Если фронт и бэк на разных доменах — укажи явно
+    const baseUrl = import.meta.env.VITE_API_WS_URL || 'wss://stan-messenger.ru'
+    return `${baseUrl}/cable?token=${token}`
+  }
 
   const connect = () => {
-    const token = getToken()
-    if (!token) return console.error('[ActionCable] Нет JWT')
+    const url = getWsUrl()
+    if (!url) {
+      console.error('[ActionCable] Нет токена')
+      return
+    }
 
-    const wsUrl = `${window.location.origin.replace('http', 'ws')}/cable?token=${token}`
-    consumer.value = createConsumer(wsUrl)
+    consumer.value = createConsumer(url)
 
-    consumer.value.connection.monitor.on('open', () => {
+    const monitor = consumer.value.connection.monitor
+    monitor.on('open', () => {
       isConnected.value = true
       console.log('[ActionCable] Подключено')
     })
 
-    consumer.value.connection.monitor.on('close', () => {
+    monitor.on('close', () => {
       isConnected.value = false
       console.log('[ActionCable] Отключено')
     })
@@ -51,21 +65,21 @@ export function useActionCable(
         },
         received(data: any) {
           const msg = typeof data === 'string' ? JSON.parse(data) : data
-          if (msg.type && msg.payload) {
-            switch (msg.type) {
-              case 'message_created':
-                onMessageCreated(msg.payload)
-                break
-              case 'message_updated':
-                onMessageUpdated(msg.payload)
-                break
-              case 'message_deleted':
-                onMessageDeleted(msg.payload)
-                break
-              case 'conversation_updated':
-                onConversationUpdated(msg.payload)
-                break
-            }
+          if (!msg.type || !msg.payload) return
+
+          switch (msg.type) {
+            case 'message_created':
+              onMessageCreated(msg.payload)
+              break
+            case 'message_updated':
+              onMessageUpdated(msg.payload)
+              break
+            case 'message_deleted':
+              onMessageDeleted(msg.payload)
+              break
+            case 'conversation_updated':
+              onConversationUpdated(msg.payload)
+              break
           }
         },
       }
@@ -98,15 +112,21 @@ export function useActionCable(
     channel.value.perform('delete_message', { message_id: messageId })
   }
 
-  watch(activeChatId, (id) => {
-    if (id) {
-      if (!consumer.value) connect()
-      subscribe(id)
-    } else {
-      unsubscribe()
-    }
-  })
+  // === Watch activeChatId (Ref) ===
+  watch(
+    activeChatId,
+    (id) => {
+      if (id) {
+        if (!consumer.value) connect()
+        subscribe(id)
+      } else {
+        unsubscribe()
+      }
+    },
+    { immediate: true }
+  )
 
+  // === Lifecycle ===
   onMounted(() => {
     if (activeChatId.value) connect()
   })

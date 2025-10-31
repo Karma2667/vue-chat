@@ -35,7 +35,7 @@
         @delete-message="deleteMessage"
         @search-query="performSearch"
         @forward-message="forwardMessage(...$event)"
-        @edit-message="handleEditMessage"
+        @edit-message="onEditMessage"
         @cancel-edit="cancelEdit"
         @create-group-chat="createGroupChat"
         @update-dialogs="dialogs = $event"
@@ -88,6 +88,12 @@ const {
 
 const messageSearchVisible = ref(false)
 const userSearchVisible = ref(false)
+
+// === АДАПТЕР ДЛЯ EDIT MESSAGE ===
+function onEditMessage(payload: [number, number, string]) {
+  const [conversationId, messageId, content] = payload
+  handleEditMessage(conversationId, messageId, content)
+}
 
 // === ПОИСК ===
 function handleSearch() {
